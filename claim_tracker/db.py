@@ -490,6 +490,25 @@ def list_attachments(claim_id: str) -> list[dict]:
         ).fetchall()]
 
 
+def update_attachment_kind(att_id: str, kind: str) -> None:
+    """Change the document-type tag on an existing attachment."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT claim_id, name FROM attachments WHERE id = ?", (att_id,)
+        ).fetchone()
+        if row is None:
+            return
+        conn.execute("UPDATE attachments SET kind = ? WHERE id = ?", (kind, att_id))
+        label = {
+            "bill":           "Medical bill",
+            "prescription":   "Prescription",
+            "bank_statement": "Bank statement",
+            "confirmation":   "Confirmation",
+        }.get(kind, "Document")
+        add_history(conn, row["claim_id"],
+                    f'"{row["name"]}" re-typed as {label}.')
+
+
 def delete_attachment(att_id: str) -> None:
     """Delete one attachment row and its file on disk."""
     with get_connection() as conn:

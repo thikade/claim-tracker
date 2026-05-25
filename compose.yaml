@@ -3,10 +3,11 @@ services:
     image: claims-tracker
     build: .
     ports:
-      - "8080:8080"
+      - "8081:8080"
     volumes:
-      - claims-data:/app/data
+      # - claims-data:/app/data
+      - ./data-docker:/app/data
     restart: unless-stopped
 
-volumes:
-  claims-data:
+# volumes:
+#   claims-data:

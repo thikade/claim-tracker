@@ -448,6 +448,32 @@ def serve_attachment(att_id: str):
 # UI building blocks
 # --------------------------------------------------------------------------
 
+def open_retype_dialog(att_id: str, current_kind: str) -> None:
+    """Dialog to change the document type of an existing attachment."""
+    doc_types = {
+        "bill":           "Medical bill",
+        "prescription":   "Prescription",
+        "bank_statement": "Bank statement",
+        "confirmation":   "Confirmation",
+        "other":          "Other",
+    }
+    with ui.dialog() as dialog, ui.card().classes("w-80 gap-4"):
+        ui.label("Change document type").classes("text-lg font-medium")
+        kind_sel = ui.select(doc_types, value=current_kind,
+                             label="Document type").classes("w-full")
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+
+            def save() -> None:
+                db.update_attachment_kind(att_id, kind_sel.value)
+                dialog.close()
+                ui.notify("Document type updated", type="positive")
+                refresh_page()
+
+            ui.button("Save", on_click=save).props("color=primary")
+    dialog.open()
+
+
 def build_attachment_row(att: dict) -> None:
     """Render one attachment line inside a claim's detail panel."""
     with ui.row().classes("items-center w-full gap-2 p-2 "
@@ -457,7 +483,15 @@ def build_attachment_row(att: dict) -> None:
         ui.link(att["name"], f"/attachment/{att['id']}", new_tab=True) \
             .classes("flex-1 truncate")
         ui.label(fmt_size(att["size"])).classes("text-xs text-gray-400")
-        ui.badge(att["kind"]).props("color=grey-4 text-color=grey-9")
+
+        badge = ui.badge(att["kind"]).props("color=grey-4 text-color=grey-9") \
+            .style("cursor:pointer") \
+            .tooltip("Click to change document type")
+
+        def on_badge_click(att_id=att["id"], kind=att["kind"]) -> None:
+            open_retype_dialog(att_id, kind)
+
+        badge.on("click", on_badge_click)
 
         def remove(att_id=att["id"]) -> None:
             db.delete_attachment(att_id)
@@ -525,16 +559,6 @@ def build_claim_detail(claim: dict) -> None:
                 ui.button("Edit details",
                           on_click=lambda: claim_form_dialog(claim)) \
                     .props("flat size=sm")
-                if claim.get("claimant_id"):
-                    ui.button(
-                        icon="palette",
-                        on_click=lambda: edit_claimant_color_dialog(
-                            claim["claimant_id"],
-                            claim.get("claimant_name", ""),
-                            claim.get("claimant_color") or "#6366f1",
-                        ),
-                    ).props("flat round dense size=sm") \
-                     .tooltip(f"Change badge color for {claim.get('claimant_name', '')}")
             ui.button("Delete claim",
                       on_click=lambda: confirm_delete_dialog(claim)) \
                 .props("flat color=negative size=sm")
