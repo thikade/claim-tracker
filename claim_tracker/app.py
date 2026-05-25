@@ -396,27 +396,40 @@ def move_dialog(claim: dict, transition: dict) -> None:
 
 
 def upload_dialog(claim_id: str) -> None:
-    """Open a dialog to attach a document to a claim."""
+    """Open a dialog to attach one or more documents to a claim."""
     doc_types = {
         "bill":           t("Medical bill"),
         "prescription":   t("Prescription"),
         "bank_statement": t("Bank statement"),
         "other":          t("Other"),
     }
+    uploaded_files: list[str] = []
+    needs_refresh = [False]
+
     with ui.dialog() as dialog, ui.card().classes("w-96 gap-2"):
-        ui.label(t("Add document")).classes("text-lg font-medium")
+        ui.label(t("Add documents")).classes("text-lg font-medium")
         kind_sel = ui.select(doc_types, value="bill", label=t("Document type")).classes("w-full")
+
+        uploaded_list = ui.column().classes("w-full gap-1")
 
         async def on_upload(e) -> None:
             content = await e.file.read()
             db.add_attachment(claim_id, e.file.name, content, kind=kind_sel.value)
-            dialog.close()
+            uploaded_files.append(e.file.name)
+            needs_refresh[0] = True
+            with uploaded_list:
+                ui.label(f"✓ {e.file.name} ({doc_types[kind_sel.value]})").classes("text-sm text-green-700")
             ui.notify(t("Document attached"), type="positive")
-            refresh_page()
 
-        ui.upload(on_upload=on_upload, auto_upload=True,
-                  label=t("Choose file")).classes("w-full")
-        ui.button(t("Close"), on_click=dialog.close).props("flat")
+        ui.upload(on_upload=on_upload, auto_upload=True, multiple=True) \
+            .classes("w-full")
+
+        def on_close() -> None:
+            dialog.close()
+            if needs_refresh[0]:
+                refresh_page()
+
+        ui.button(t("Done"), on_click=on_close).props("flat")
     dialog.open()
 
 
