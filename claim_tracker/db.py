@@ -487,6 +487,16 @@ def delete_attachment(att_id: str) -> None:
                     f'{verb} "{row["name"]}" removed.')
 
 
+def claim_counts_by_stage() -> dict:
+    """Return claim counts keyed by stage plus 'active' and 'all'."""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT stage, COUNT(*) AS n FROM claims GROUP BY stage").fetchall()
+    by_stage = {r["stage"]: r["n"] for r in rows}
+    total = sum(by_stage.values())
+    active = total - by_stage.get("archived", 0)
+    return {"all": total, "active": active, **by_stage}
+
+
 # --------------------------------------------------------------------------
 # History
 # --------------------------------------------------------------------------

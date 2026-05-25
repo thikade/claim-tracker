@@ -657,9 +657,43 @@ def claim_board() -> None:
 
 
 def refresh_page() -> None:
-    """Re-render both refreshable regions after any data change."""
+    """Re-render all refreshable regions after any data change."""
     metrics_row.refresh()
+    toolbar.refresh()
     claim_board.refresh()
+
+
+@ui.refreshable
+def toolbar() -> None:
+    counts = db.claim_counts_by_stage()
+
+    def label(key: str, name: str) -> str:
+        n = counts.get(key, 0)
+        return f"{name} ({n})"
+
+    options = {
+        "active": label("active", "Active claims"),
+        "all":    label("all",    "All stages"),
+        **{k: label(k, db.STAGES[k]) for k in db.STAGE_ORDER},
+    }
+
+    with ui.row().classes("w-full gap-2 items-center no-wrap"):
+        search = ui.input(
+            placeholder="Search by title, provider, claimant or notes…",
+            value=state["search"],
+        ).classes("flex-1").props("clearable")
+
+        def on_search(e) -> None:
+            state["search"] = e.value or ""
+            claim_board.refresh()
+        search.on_value_change(on_search)
+
+        stage_sel = ui.select(options, value=state["stage"]).classes("w-56")
+
+        def on_stage(e) -> None:
+            state["stage"] = e.value
+            claim_board.refresh()
+        stage_sel.on_value_change(on_stage)
 
 
 # --------------------------------------------------------------------------
@@ -698,27 +732,7 @@ def main_page() -> None:
         metrics_row()
 
         # ---- toolbar -----------------------------------------------------
-        with ui.row().classes("w-full gap-2 items-center no-wrap"):
-            search = ui.input(
-                placeholder="Search by title, provider, claimant or notes…"
-            ).classes("flex-1").props("clearable")
-
-            def on_search(e) -> None:
-                state["search"] = e.value or ""
-                claim_board.refresh()
-            search.on_value_change(on_search)
-
-            stage_sel = ui.select(
-                {"active": "Active claims",
-                 "all": "All stages",
-                 **{k: db.STAGES[k] for k in db.STAGE_ORDER}},
-                value="active",
-            ).classes("w-44")
-
-            def on_stage(e) -> None:
-                state["stage"] = e.value
-                claim_board.refresh()
-            stage_sel.on_value_change(on_stage)
+        toolbar()
 
         # ---- board -------------------------------------------------------
         claim_board()
