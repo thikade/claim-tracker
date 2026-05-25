@@ -233,8 +233,6 @@ def claim_form_dialog(existing: dict | None = None) -> None:
 
             ui.button(icon="add", on_click=lambda: add_provider_dialog(on_provider_created)) \
                 .props("flat round dense").classes("mb-1")
-            ui.button(icon="remove", on_click=lambda: delete_provider_dialog(on_provider_deleted)) \
-                .props("flat round dense color=negative").classes("mb-1")
 
         claimants = db.list_claimants()
         claimant_options = {c["id"]: c["name"] for c in claimants}
@@ -260,8 +258,6 @@ def claim_form_dialog(existing: dict | None = None) -> None:
 
             ui.button(icon="add", on_click=lambda: add_claimant_dialog(on_claimant_created)) \
                 .props("flat round dense").classes("mb-1")
-            ui.button(icon="remove", on_click=lambda: delete_claimant_dialog(on_claimant_deleted)) \
-                .props("flat round dense color=negative").classes("mb-1")
 
         amount = ui.number(
             "Amount (€)", format="%.2f",
