@@ -602,7 +602,7 @@ def metrics_row() -> None:
          "pending too long", s["stale"] > 0),
         ("Archived", str(s["archived"]), "completed", False),
     ]
-    with ui.row().classes("w-full gap-3 no-wrap"):
+    with ui.row().classes("w-full gap-3 no-wrap items-stretch"):
         # Outstanding card — per-claimant rows only
         with ui.card().classes("flex-1 gap-0"):
             ui.label("OUTSTANDING").classes("text-xs font-bold text-gray-400")
