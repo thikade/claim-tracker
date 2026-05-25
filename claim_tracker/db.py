@@ -558,6 +558,12 @@ def list_history(claim_id: str) -> list[dict]:
         ).fetchall()]
 
 
+def delete_history_entry(entry_id: int) -> None:
+    """Remove a single history row by its id."""
+    with get_connection() as conn:
+        conn.execute("DELETE FROM history WHERE id = ?", (entry_id,))
+
+
 # --------------------------------------------------------------------------
 # Dashboard aggregates
 # --------------------------------------------------------------------------
