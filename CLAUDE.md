@@ -55,10 +55,14 @@ Always activate the venv with `source venv/bin/activate` before running Python c
   is optional (a claim may go `scanned → private_pending` directly). Legal
   moves are defined in `db.TRANSITIONS`; `db.move_claim()` validates them and
   raises `ValueError` on an illegal transition. Never bypass `move_claim()`.
+- **Claim IDs:** human-readable, sequential — `CLM-0001`, `CLM-0002`, etc.
+  The sequence is stored in a `meta` table (`key='claim_seq'`). These IDs are
+  displayed in the UI on each claim card.
 - **Attachments:** file bytes are written into `data/attachments/` as real
   files; only the path + metadata go into the `attachments` table. This keeps
-  the DB small and documents recoverable from the filesystem. Each attachment
-  has a `kind`: `bill`, `confirmation`, or `other`.
+  the DB small and documents recoverable from the filesystem. Filenames are
+  `{claim_id}_{uuid12}{ext}` (e.g. `CLM-0001_3f8a2c1d4e9b.pdf`). Each
+  attachment has a `kind`: `bill`, `confirmation`, or `other`.
 - **History:** every meaningful action appends a row to the `history` table
   via `db.add_history()`. Any new mutating operation should also log history.
 - **Staleness:** `db.STALE_DAYS` sets per-stage thresholds (public 35d,
@@ -79,9 +83,8 @@ Always activate the venv with `source venv/bin/activate` before running Python c
   has been exercised through a complete lifecycle test (create, walk all
   stages, illegal-move rejection, attachments, history, dashboard, search,
   backup, delete) — all passing.
-- The NiceGUI UI in `app.py` has NOT been run live yet (the build environment
-  had no network to install NiceGUI). It compiles cleanly. First real launch
-  on the user's machine is the outstanding verification step.
+- The NiceGUI UI has been run live and several runtime bugs fixed (see progress
+  log). The app is functional.
 - When adding `db.py` logic, prefer a quick throwaway-temp-dir test like the
   one used during the initial build (point `db.DATA_DIR` / `db.DB_PATH` /
   `db.FILES_DIR` at a `tempfile.mkdtemp()` directory).
@@ -103,10 +106,18 @@ Always activate the venv with `source venv/bin/activate` before running Python c
 - **Not verified:** live NiceGUI run (no network in build environment).
 - Added this `CLAUDE.md`.
 
+### 2026-05-25 — Runtime fixes and UI polish (session 2)
+- Fixed `create_claim()` missing `public_ref`/`private_ref` params (TypeError on save).
+- Fixed file upload handler for NiceGUI 3.x API (`e.file.read()` async, not `e.content`).
+- Switched claim IDs to human-readable `CLM-NNNN` sequence via `meta` table.
+- Claim ID now displayed in card summary row (left of stage badge).
+- Visit date defaults to yesterday in create dialog.
+- Removed currency selector; amount fixed to EUR (€).
+- Enabled `reload=True` for hot-reload during development.
+
 ## Open items / next steps
 
-- [ ] First live run of the NiceGUI app on the user's machine — confirm the
-      3.x API calls all behave; fix any runtime adjustments.
+- [x] First live run of the NiceGUI app — runtime bugs fixed (see 2026-05-25 session 2).
 - [ ] Consider a `.gitignore` (exclude `data/`, `__pycache__/`, `*.pyc`,
       `claims.db*`) if the project goes under version control.
 - [ ] Possible enhancement: CSV/JSON export of all claims for tax records.
