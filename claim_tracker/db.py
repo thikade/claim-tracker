@@ -385,6 +385,15 @@ def get_claim(claim_id: str) -> Optional[dict]:
         return dict(row) if row else None
 
 
+def list_titles() -> list[str]:
+    """Return distinct claim titles, most recently used first."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT title FROM claims ORDER BY created_at DESC"
+        ).fetchall()
+    return [r[0] for r in rows]
+
+
 def list_claims(search: str = "", stage: str = "all") -> list[dict]:
     """Return all claims (with claimant_name), optionally filtered."""
     clauses, params = [], []

@@ -207,6 +207,7 @@ def claim_form_dialog(existing: dict | None = None) -> None:
             "Title",
             placeholder="e.g. Dr. Müller - physiotherapy",
             value=existing["title"] if editing else "",
+            autocomplete=db.list_titles(),
         ).classes("w-full")
 
         providers = db.list_providers()
