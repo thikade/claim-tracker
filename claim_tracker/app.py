@@ -697,7 +697,7 @@ def main_page() -> None:
         # ---- toolbar -----------------------------------------------------
         with ui.row().classes("w-full gap-2 items-center no-wrap"):
             search = ui.input(
-                placeholder="Search by title, provider or notes…"
+                placeholder="Search by title, provider, claimant or notes…"
             ).classes("flex-1").props("clearable")
 
             def on_search(e) -> None:

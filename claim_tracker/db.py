@@ -394,10 +394,11 @@ def list_claims(search: str = "", stage: str = "all") -> list[dict]:
     if search:
         clauses.append(
             "(LOWER(c.title) LIKE ? OR LOWER(COALESCE(p.name,'')) LIKE ? "
-            "OR LOWER(COALESCE(c.notes,'')) LIKE ?)"
+            "OR LOWER(COALESCE(c.notes,'')) LIKE ? "
+            "OR LOWER(COALESCE(cl.name,'')) LIKE ?)"
         )
         like = f"%{search.lower()}%"
-        params += [like, like, like]
+        params += [like, like, like, like]
     query = _CLAIM_SELECT
     if clauses:
         query += " WHERE " + " AND ".join(clauses)
