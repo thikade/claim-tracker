@@ -1,0 +1,537 @@
+"""NiceGUI frontend for the insurance claim tracker.
+
+Run with:  python -m claim_tracker.app   (or python app.py from this folder)
+
+The whole application is a single Python process: NiceGUI serves the web
+UI and the SQLite database lives on disk next to the code. There is no
+separate backend service.
+"""
+from __future__ import annotations
+
+import base64
+from datetime import datetime
+from pathlib import Path
+
+from nicegui import ui, app
+
+from . import db
+
+
+# --------------------------------------------------------------------------
+# Formatting helpers
+# --------------------------------------------------------------------------
+
+def fmt_date(iso: str) -> str:
+    """Render an ISO timestamp as a short local date."""
+    if not iso:
+        return ""
+    try:
+        return datetime.fromisoformat(iso).strftime("%d %b %Y")
+    except ValueError:
+        return iso
+
+
+def fmt_datetime(iso: str) -> str:
+    """Render an ISO timestamp as a short local date + time."""
+    try:
+        return datetime.fromisoformat(iso).strftime("%d %b %Y, %H:%M")
+    except ValueError:
+        return iso
+
+
+def fmt_size(n: int | None) -> str:
+    """Human-readable file size."""
+    if not n:
+        return ""
+    if n < 1024:
+        return f"{n} B"
+    if n < 1024 * 1024:
+        return f"{n / 1024:.0f} KB"
+    return f"{n / 1024 / 1024:.1f} MB"
+
+
+# --------------------------------------------------------------------------
+# Page state
+#
+# Kept in a plain dict so the refreshable functions can read it. NiceGUI
+# runs single-worker, so this is safe for a local single-user tool.
+# --------------------------------------------------------------------------
+
+state = {"search": "", "stage": "all", "open_id": None}
+
+
+# --------------------------------------------------------------------------
+# Dialogs
+# --------------------------------------------------------------------------
+
+def claim_form_dialog(existing: dict | None = None) -> None:
+    """Open a dialog to create a new claim or edit an existing one."""
+    editing = existing is not None
+    with ui.dialog() as dialog, ui.card().classes("w-96 gap-2"):
+        ui.label("Edit claim" if editing else "New claim") \
+            .classes("text-xl font-medium")
+
+        title = ui.input(
+            "Title",
+            placeholder="e.g. Dr. Müller - physiotherapy",
+            value=existing["title"] if editing else "",
+        ).classes("w-full")
+        provider = ui.input(
+            "Provider / doctor",
+            value=existing["provider"] if editing else "",
+        ).classes("w-full")
+
+        with ui.row().classes("w-full gap-2"):
+            amount = ui.number(
+                "Amount", format="%.2f",
+                value=existing["amount"] if editing else None,
+            ).classes("flex-1")
+            currency = ui.select(
+                ["€", "$", "£", "CHF", "Kč"],
+                label="Currency",
+                value=existing["currency"] if editing else "€",
+            ).classes("w-24")
+
+        visit = ui.input(
+            "Visit date",
+            value=existing["visit_date"] if editing else "",
+        ).props("type=date").classes("w-full")
+
+        # Portal reference numbers - handy once a claim is submitted.
+        public_ref = ui.input(
+            "Public portal reference",
+            value=existing.get("public_ref") or "" if editing else "",
+        ).classes("w-full")
+        private_ref = ui.input(
+            "Private insurer reference",
+            value=existing.get("private_ref") or "" if editing else "",
+        ).classes("w-full")
+
+        notes = ui.textarea(
+            "Notes",
+            value=existing["notes"] if editing else "",
+        ).classes("w-full")
+
+        def save() -> None:
+            if not title.value or not title.value.strip():
+                ui.notify("Please enter a title", type="warning")
+                return
+            fields = dict(
+                title=title.value.strip(),
+                provider=(provider.value or "").strip(),
+                amount=amount.value,
+                currency=currency.value or "€",
+                visit_date=visit.value or "",
+                notes=(notes.value or "").strip(),
+                public_ref=(public_ref.value or "").strip(),
+                private_ref=(private_ref.value or "").strip(),
+            )
+            if editing:
+                db.update_claim(existing["id"], **fields)
+                ui.notify("Claim updated", type="positive")
+            else:
+                new_id = db.create_claim(**fields)
+                state["open_id"] = new_id
+                ui.notify("Claim created", type="positive")
+            dialog.close()
+            refresh_page()
+
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Save" if editing else "Create", on_click=save) \
+                .props("color=primary")
+    dialog.open()
+
+
+def move_dialog(claim: dict, transition: dict) -> None:
+    """Confirm a stage move, optionally uploading a confirmation document."""
+    # A simple move with no document - just do it.
+    if not transition["needs_doc"]:
+        db.move_claim(claim["id"], transition["to"])
+        ui.notify(f"Moved to {db.STAGES[transition['to']]}", type="positive")
+        refresh_page()
+        return
+
+    uploaded: dict = {"name": None, "content": None}
+
+    with ui.dialog() as dialog, ui.card().classes("w-96 gap-2"):
+        ui.label(transition["label"]).classes("text-lg font-medium")
+        ui.label(transition["doc_hint"] +
+                 ". You can also continue without it and add the "
+                 "document later.").classes("text-sm text-gray-600")
+
+        def on_upload(e) -> None:
+            uploaded["name"] = e.name
+            uploaded["content"] = e.content.read()
+            ui.notify(f"Selected: {e.name}")
+
+        ui.upload(on_upload=on_upload, auto_upload=True,
+                  label="Choose confirmation file").classes("w-full")
+
+        def confirm(with_doc: bool) -> None:
+            db.move_claim(claim["id"], transition["to"])
+            if with_doc and uploaded["content"] is not None:
+                db.add_attachment(
+                    claim["id"], uploaded["name"],
+                    uploaded["content"], kind="confirmation",
+                )
+            dialog.close()
+            ui.notify(f"Moved to {db.STAGES[transition['to']]}",
+                      type="positive")
+            refresh_page()
+
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Continue without",
+                      on_click=lambda: confirm(False)).props("flat")
+            ui.button("Confirm step",
+                      on_click=lambda: confirm(True)).props("color=primary")
+    dialog.open()
+
+
+def upload_dialog(claim_id: str, kind: str) -> None:
+    """Open a dialog to attach a bill or other document to a claim."""
+    with ui.dialog() as dialog, ui.card().classes("w-96 gap-2"):
+        label = "Add bill" if kind == "bill" else "Add document"
+        ui.label(label).classes("text-lg font-medium")
+
+        def on_upload(e) -> None:
+            content = e.content.read()
+            db.add_attachment(claim_id, e.name, content, kind=kind)
+            dialog.close()
+            ui.notify("Document attached", type="positive")
+            refresh_page()
+
+        ui.upload(on_upload=on_upload, auto_upload=True,
+                  label="Choose file").classes("w-full")
+        ui.button("Close", on_click=dialog.close).props("flat")
+    dialog.open()
+
+
+def confirm_delete_dialog(claim: dict) -> None:
+    """Ask for confirmation before permanently deleting a claim."""
+    atts = db.list_attachments(claim["id"])
+    with ui.dialog() as dialog, ui.card().classes("w-96 gap-2"):
+        ui.label("Delete claim?").classes("text-lg font-medium")
+        ui.label(f'"{claim["title"]}" and its {len(atts)} document(s) '
+                 "will be permanently removed from the database and disk.") \
+            .classes("text-sm text-gray-600")
+
+        def do_delete() -> None:
+            db.delete_claim(claim["id"])
+            if state["open_id"] == claim["id"]:
+                state["open_id"] = None
+            dialog.close()
+            ui.notify("Claim deleted", type="warning")
+            refresh_page()
+
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Delete permanently", on_click=do_delete) \
+                .props("color=negative")
+    dialog.open()
+
+
+# --------------------------------------------------------------------------
+# Attachment download route
+#
+# A custom GET route streams a stored file back to the browser so the
+# "open" button works for PDFs, images, anything.
+# --------------------------------------------------------------------------
+
+@app.get("/attachment/{att_id}")
+def serve_attachment(att_id: str):
+    from fastapi.responses import FileResponse, PlainTextResponse
+    for claim in db.list_claims():
+        for a in db.list_attachments(claim["id"]):
+            if a["id"] == att_id:
+                p = Path(a["stored_path"])
+                if p.exists():
+                    return FileResponse(p, filename=a["name"])
+    return PlainTextResponse("Not found", status_code=404)
+
+
+# --------------------------------------------------------------------------
+# UI building blocks
+# --------------------------------------------------------------------------
+
+def build_attachment_row(att: dict) -> None:
+    """Render one attachment line inside a claim's detail panel."""
+    with ui.row().classes("items-center w-full gap-2 p-2 "
+                          "border rounded bg-white"):
+        icon = "receipt_long" if att["kind"] == "bill" else "description"
+        ui.icon(icon).classes("text-gray-500")
+        ui.link(att["name"], f"/attachment/{att['id']}", new_tab=True) \
+            .classes("flex-1 truncate")
+        ui.label(fmt_size(att["size"])).classes("text-xs text-gray-400")
+        ui.badge(att["kind"]).props("color=grey-4 text-color=grey-9")
+
+        def remove(att_id=att["id"]) -> None:
+            db.delete_attachment(att_id)
+            ui.notify("Document removed")
+            refresh_page()
+
+        ui.button(icon="close", on_click=remove) \
+            .props("flat dense round size=sm")
+
+
+def build_claim_detail(claim: dict) -> None:
+    """Render the expanded detail panel for one claim."""
+    with ui.column().classes("w-full gap-3 p-3 bg-gray-50 "
+                             "border-t rounded-b"):
+        # ---- next step / stage actions -----------------------------------
+        transitions = db.TRANSITIONS.get(claim["stage"], [])
+        if transitions:
+            with ui.card().classes("w-full bg-green-50 gap-1"):
+                ui.label("NEXT STEP").classes(
+                    "text-xs font-bold text-green-800")
+                with ui.row().classes("gap-2 flex-wrap"):
+                    for t in transitions:
+                        ui.button(
+                            t["label"],
+                            on_click=lambda t=t: move_dialog(claim, t),
+                        ).props("color=primary size=sm")
+        else:
+            with ui.card().classes("w-full bg-gray-100"):
+                ui.label("This claim is archived. Nothing further to do.") \
+                    .classes("text-sm text-gray-600")
+
+        # ---- two columns: attachments + history --------------------------
+        with ui.row().classes("w-full gap-6 items-start"):
+
+            # attachments column
+            with ui.column().classes("flex-1 gap-2 min-w-0"):
+                ui.label("ATTACHMENTS").classes(
+                    "text-xs font-bold text-gray-400")
+                attachments = db.list_attachments(claim["id"])
+                if attachments:
+                    for a in attachments:
+                        build_attachment_row(a)
+                else:
+                    ui.label("No documents yet.") \
+                        .classes("text-sm text-gray-400")
+                with ui.row().classes("gap-2"):
+                    ui.button(
+                        "+ Add bill",
+                        on_click=lambda: upload_dialog(claim["id"], "bill"),
+                    ).props("outline size=sm")
+                    ui.button(
+                        "+ Add document",
+                        on_click=lambda: upload_dialog(claim["id"], "other"),
+                    ).props("outline size=sm")
+
+            # history column
+            with ui.column().classes("flex-1 gap-1 min-w-0"):
+                ui.label("HISTORY").classes(
+                    "text-xs font-bold text-gray-400")
+                for h in db.list_history(claim["id"]):
+                    with ui.column().classes("gap-0 mb-1"):
+                        ui.label(h["text"]).classes("text-sm")
+                        ui.label(fmt_datetime(h["ts"])) \
+                            .classes("text-xs text-gray-400")
+
+        # ---- footer: edit + delete ---------------------------------------
+        with ui.row().classes("w-full justify-between border-t pt-2"):
+            ui.button("Edit details",
+                      on_click=lambda: claim_form_dialog(claim)) \
+                .props("flat size=sm")
+            ui.button("Delete claim",
+                      on_click=lambda: confirm_delete_dialog(claim)) \
+                .props("flat color=negative size=sm")
+
+
+def build_claim_card(claim: dict) -> None:
+    """Render a single collapsible claim card."""
+    is_open = state["open_id"] == claim["id"]
+    color = db.STAGE_COLORS[claim["stage"]]
+    stale = db.is_stale(claim)
+    age = db.days_in_stage(claim)
+    age_label = "today" if age == 0 else f"{age}d in stage"
+
+    with ui.card().classes("w-full p-0 overflow-hidden"):
+        # ---- summary row (click to toggle) -------------------------------
+        def toggle(cid=claim["id"]) -> None:
+            state["open_id"] = None if is_open else cid
+            refresh_page()
+
+        with ui.row().classes(
+            "items-center w-full gap-3 p-3 cursor-pointer "
+            "hover:bg-gray-50 no-wrap"
+        ).on("click", toggle):
+            # colored stage marker
+            ui.element("div").style(
+                f"width:6px;align-self:stretch;border-radius:3px;"
+                f"background:{color}")
+
+            with ui.column().classes("flex-1 gap-0 min-w-0"):
+                ui.label(claim["title"]).classes(
+                    "text-base font-medium truncate")
+                meta = []
+                if claim["provider"]:
+                    meta.append(claim["provider"])
+                if claim["amount"]:
+                    meta.append(f"{claim['currency']}"
+                                f"{claim['amount']:.2f}")
+                meta.append(f"opened {fmt_date(claim['created_at'])}")
+                ui.label("  ·  ".join(meta)) \
+                    .classes("text-xs text-gray-500 truncate")
+
+            with ui.column().classes("items-end gap-1"):
+                ui.badge(db.STAGES[claim["stage"]]) \
+                    .style(f"background:{color}")
+                lbl = ui.label(("⚠ " if stale else "") + age_label)
+                lbl.classes("text-xs " +
+                            ("text-amber-700 font-medium"
+                             if stale else "text-gray-400"))
+
+        # ---- detail panel ------------------------------------------------
+        if is_open:
+            build_claim_detail(claim)
+
+
+# --------------------------------------------------------------------------
+# Refreshable regions
+# --------------------------------------------------------------------------
+
+@ui.refreshable
+def metrics_row() -> None:
+    """Render the four dashboard metric cards."""
+    s = db.dashboard_stats()
+    # currency symbol from the most recent claim, fall back to euro
+    claims = db.list_claims()
+    cur = claims[0]["currency"] if claims else "€"
+    cards = [
+        ("Active claims", str(s["active"]), f"{s['total']} total", False),
+        ("Outstanding", f"{cur}{s['outstanding']:.2f}",
+         "not yet archived", False),
+        ("Need attention", str(s["stale"]),
+         "pending too long", s["stale"] > 0),
+        ("Archived", str(s["archived"]), "completed", False),
+    ]
+    with ui.row().classes("w-full gap-3 no-wrap"):
+        for label, value, sub, flag in cards:
+            with ui.card().classes("flex-1 gap-0"):
+                ui.label(label.upper()).classes(
+                    "text-xs font-bold text-gray-400")
+                ui.label(value).classes(
+                    "text-2xl font-medium " +
+                    ("text-amber-700" if flag else ""))
+                ui.label(sub).classes("text-xs text-gray-500")
+
+
+@ui.refreshable
+def claim_board() -> None:
+    """Render all claims grouped by stage."""
+    claims = db.list_claims(search=state["search"], stage=state["stage"])
+
+    if not db.list_claims():
+        with ui.column().classes("w-full items-center py-16"):
+            ui.label("No claims yet.").classes("text-lg text-gray-400")
+            ui.label('Click "New claim" to scan your first medical bill.') \
+                .classes("text-sm text-gray-400")
+        return
+
+    if not claims:
+        ui.label("No claims match your search.") \
+            .classes("text-gray-400 py-16 text-center w-full")
+        return
+
+    for stage_id in db.STAGE_ORDER:
+        group = [c for c in claims if c["stage"] == stage_id]
+        if not group:
+            continue
+        with ui.column().classes("w-full gap-2 mb-4"):
+            with ui.row().classes("items-baseline gap-2 w-full"):
+                ui.label(db.STAGES[stage_id]) \
+                    .classes("text-lg font-medium")
+                ui.label(str(len(group))) \
+                    .classes("text-xs text-gray-400 font-bold")
+            for c in group:
+                build_claim_card(c)
+
+
+def refresh_page() -> None:
+    """Re-render both refreshable regions after any data change."""
+    metrics_row.refresh()
+    claim_board.refresh()
+
+
+# --------------------------------------------------------------------------
+# Main page
+# --------------------------------------------------------------------------
+
+@ui.page("/")
+def main_page() -> None:
+    ui.colors(primary="#2c5f4f")
+    ui.add_head_html(
+        "<style>body{background:#f4f2ec}</style>")
+
+    with ui.column().classes("w-full max-w-4xl mx-auto p-6 gap-4"):
+
+        # ---- header ------------------------------------------------------
+        with ui.row().classes("w-full items-end justify-between "
+                              "border-b-2 border-gray-800 pb-3"):
+            with ui.column().classes("gap-0"):
+                ui.label("Insurance Claim Tracker") \
+                    .classes("text-2xl font-medium")
+                ui.label("Medical bills · public health service · "
+                         "private insurance") \
+                    .classes("text-xs text-gray-500")
+            with ui.row().classes("gap-2"):
+                def do_backup() -> None:
+                    target = db.backup_to(db.DATA_DIR / "backups")
+                    ui.notify(f"Backup written to {target}",
+                              type="positive")
+                ui.button("Backup", on_click=do_backup).props("outline")
+                ui.button("+ New claim",
+                          on_click=lambda: claim_form_dialog(None)) \
+                    .props("color=primary")
+
+        # ---- metrics -----------------------------------------------------
+        metrics_row()
+
+        # ---- toolbar -----------------------------------------------------
+        with ui.row().classes("w-full gap-2 items-center no-wrap"):
+            search = ui.input(
+                placeholder="Search by title, provider or notes…"
+            ).classes("flex-1").props("clearable")
+
+            def on_search(e) -> None:
+                state["search"] = e.value or ""
+                claim_board.refresh()
+            search.on_value_change(on_search)
+
+            stage_sel = ui.select(
+                {"all": "All stages",
+                 **{k: db.STAGES[k] for k in db.STAGE_ORDER}},
+                value="all",
+            ).classes("w-44")
+
+            def on_stage(e) -> None:
+                state["stage"] = e.value
+                claim_board.refresh()
+            stage_sel.on_value_change(on_stage)
+
+        # ---- board -------------------------------------------------------
+        claim_board()
+
+
+# --------------------------------------------------------------------------
+# Entry point
+# --------------------------------------------------------------------------
+
+def run() -> None:
+    """Initialise the database and start the NiceGUI server."""
+    db.init_db()
+    ui.run(
+        title="Insurance Claim Tracker",
+        port=8080,
+        reload=False,
+        show=True,        # open the browser automatically
+        favicon="🧾",
+    )
+
+
+# `python -m claim_tracker.app` and `python app.py` both work.
+if __name__ in {"__main__", "__mp_main__"}:
+    run()
