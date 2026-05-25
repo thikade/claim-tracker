@@ -626,6 +626,14 @@ def build_claim_card(claim: dict) -> None:
                 meta.append(f"opened {fmt_date(claim['created_at'])}")
                 ui.label("  ·  ".join(meta)) \
                     .classes("text-xs text-gray-500 truncate")
+                dates = []
+                if claim.get("visit_date"):
+                    dates.append(f"visited {fmt_date(claim['visit_date'])}")
+                if claim.get("bill_date"):
+                    dates.append(f"billed {fmt_date(claim['bill_date'])}")
+                if dates:
+                    ui.label("  /  ".join(dates)) \
+                        .classes("text-xs text-gray-400 truncate")
 
             with ui.column().classes("items-end gap-1"):
                 with ui.row().classes("items-center gap-2 no-wrap"):
