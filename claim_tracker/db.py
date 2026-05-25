@@ -80,8 +80,9 @@ TRANSITIONS = {
 }
 
 # Days a claim may sit in a pending stage before it is flagged as stale.
-STALE_DAYS = {
-    "public_pending": 35,   # public health processing genuinely runs long
+# Mutable — updated at runtime by set_stale_days(); persisted in the meta table.
+STALE_DAYS: dict[str, int] = {
+    "public_pending": 35,
     "private_pending": 21,
 }
 
@@ -152,6 +153,8 @@ def init_db() -> None:
                 value TEXT NOT NULL
             );
             INSERT OR IGNORE INTO meta (key, value) VALUES ('claim_seq', '0');
+            INSERT OR IGNORE INTO meta (key, value) VALUES ('stale_public_pending', '35');
+            INSERT OR IGNORE INTO meta (key, value) VALUES ('stale_private_pending', '21');
 
             CREATE TABLE IF NOT EXISTS claimants (
                 id    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -173,6 +176,8 @@ def init_db() -> None:
         if "provider_id" not in cols:
             conn.execute("ALTER TABLE claims ADD COLUMN provider_id INTEGER REFERENCES providers(id)")
 
+    load_stale_days()
+
 
 # --------------------------------------------------------------------------
 # History helper
@@ -184,6 +189,30 @@ def add_history(conn: sqlite3.Connection, claim_id: str, text: str) -> None:
         "INSERT INTO history (claim_id, ts, text) VALUES (?, ?, ?)",
         (claim_id, _now(), text),
     )
+
+
+# --------------------------------------------------------------------------
+# Staleness thresholds
+# --------------------------------------------------------------------------
+
+def load_stale_days() -> None:
+    """Read staleness thresholds from the meta table into STALE_DAYS."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT key, value FROM meta WHERE key IN ('stale_public_pending', 'stale_private_pending')"
+        ).fetchall()
+    for row in rows:
+        stage = row["key"].removeprefix("stale_")
+        STALE_DAYS[stage] = int(row["value"])
+
+
+def set_stale_days(public_pending: int, private_pending: int) -> None:
+    """Persist updated staleness thresholds and update the in-memory dict."""
+    with get_connection() as conn:
+        conn.execute("UPDATE meta SET value=? WHERE key='stale_public_pending'", (str(public_pending),))
+        conn.execute("UPDATE meta SET value=? WHERE key='stale_private_pending'", (str(private_pending),))
+    STALE_DAYS["public_pending"] = public_pending
+    STALE_DAYS["private_pending"] = private_pending
 
 
 # --------------------------------------------------------------------------

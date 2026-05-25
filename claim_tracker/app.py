@@ -773,6 +773,39 @@ def settings_page() -> None:
             providers_col = ui.column().classes("w-full gap-1")
             _render_providers(providers_col)
 
+        # ---- Staleness thresholds section --------------------------------
+        with ui.card().classes("w-full"):
+            ui.label("Staleness thresholds").classes("text-lg font-semibold mb-2")
+            ui.label(
+                "A claim is flagged as stale when it has been in a pending stage longer than these limits."
+            ).classes("text-sm text-gray-500 mb-3")
+
+            public_input = ui.number(
+                "Public insurer pending (days)",
+                value=db.STALE_DAYS["public_pending"],
+                min=1, step=1, format="%.0f",
+            ).classes("w-full")
+            private_input = ui.number(
+                "Private insurer pending (days)",
+                value=db.STALE_DAYS["private_pending"],
+                min=1, step=1, format="%.0f",
+            ).classes("w-full")
+
+            def save_stale_days():
+                try:
+                    pub = int(public_input.value)
+                    priv = int(private_input.value)
+                    if pub < 1 or priv < 1:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    ui.notify("Please enter valid positive numbers", type="warning")
+                    return
+                db.set_stale_days(pub, priv)
+                ui.notify("Staleness thresholds updated", type="positive")
+
+            with ui.row().classes("w-full justify-end mt-2"):
+                ui.button("Save", on_click=save_stale_days).props("color=primary")
+
 
 def _render_claimants(container: ui.column) -> None:
     container.clear()
@@ -948,7 +981,7 @@ def run() -> None:
         port=8080,
         reload=os.getenv("CLAIMS_DEV", "0") == "1",
         show=os.getenv("CLAIMS_DEV", "0") == "1",
-        favicon="🧾",
+        favicon="💲",
     )
 
 
