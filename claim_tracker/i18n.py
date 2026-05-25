@@ -31,7 +31,7 @@ _DE: dict[str, str] = {
 
     # Stage names (from db.STAGES)
     "Claim created": "Antrag erstellt",
-    "Public claim pending": "GKV-Antrag ausstehend",
+    "Public claim pending": "ÖKV-Antrag ausstehend",
     "Private claim pending": "PKV-Antrag ausstehend",
     "Archived": "Archiviert",
 
@@ -53,14 +53,14 @@ _DE: dict[str, str] = {
     "Delete claim": "Antrag löschen",
 
     # Stage transition button labels (from db.TRANSITIONS)
-    "Submit to public health portal": "Bei GKV einreichen",
+    "Submit to public health portal": "Bei ÖKV einreichen",
     "Submit directly to private insurer": "Direkt bei PKV einreichen",
     "Archive directly": "Direkt archivieren",
-    "Public claim processed - file private claim": "GKV bearbeitet – PKV-Antrag einreichen",
+    "Public claim processed - file private claim": "ÖKV bearbeitet – PKV-Antrag einreichen",
     "Private claim processed - archive": "PKV bearbeitet – archivieren",
 
     # Move dialog
-    "Attach the public health service confirmation": "GKV-Bestätigung anhängen",
+    "Attach the public health service confirmation": "ÖKV-Bestätigung anhängen",
     "Attach the private insurer confirmation": "PKV-Bestätigung anhängen",
     "You can also continue without it and add the document later.":
         "Sie können auch ohne Dokument fortfahren und es später hinzufügen.",
@@ -72,14 +72,14 @@ _DE: dict[str, str] = {
 
     # Document type keys (raw kind values used in badge)
     "bill": "Arztrechnung",
-    "prescription": "Rezept",
+    "prescription": "Verschreibung",
     "bank_statement": "Kontoauszug",
     "confirmation": "Bestätigung",
     "other": "Sonstiges",
 
     # Document type display labels (used in select dropdowns)
     "Medical bill": "Arztrechnung",
-    "Prescription": "Rezept",
+    "Prescription": "Verschreibung",
     "Bank statement": "Kontoauszug",
     "Confirmation": "Bestätigung",
     "Other": "Sonstiges",
@@ -148,7 +148,7 @@ _DE: dict[str, str] = {
     "Amount (€)": "Betrag (€)",
     "Visit date": "Besuchsdatum",
     "Bill date": "Rechnungsdatum",
-    "Public insurer reference": "GKV-Referenznummer",
+    "Public insurer reference": "ÖKV-Referenznummer",
     "Private insurer reference": "PKV-Referenznummer",
     "Notes": "Notizen",
     "Edit claim": "Antrag bearbeiten",
@@ -169,7 +169,7 @@ _DE: dict[str, str] = {
     "Staleness thresholds": "Überfälligkeits-Fristen",
     "A claim is flagged as stale when it has been in a pending stage longer than these limits.":
         "Ein Antrag wird als überfällig markiert, wenn er länger als diese Frist in einer ausstehenden Phase verbleibt.",
-    "Public insurer pending (days)": "GKV ausstehend (Tage)",
+    "Public insurer pending (days)": "ÖKV ausstehend (Tage)",
     "Private insurer pending (days)": "PKV ausstehend (Tage)",
     "Please enter valid positive numbers": "Bitte gültige positive Zahlen eingeben",
     "Staleness thresholds updated": "Fristen aktualisiert",
