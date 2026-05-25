@@ -64,6 +64,49 @@ state = {"search": "", "stage": "all", "open_id": None}
 # Dialogs
 # --------------------------------------------------------------------------
 
+def add_claimant_dialog(on_created) -> None:
+    """Open a dialog to add a new claimant with a badge color."""
+    with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
+        ui.label("New claimant").classes("text-lg font-medium")
+        name_input = ui.input("Full name").classes("w-full")
+        color_input = ui.color_input("Badge color", value="#6366f1").classes("w-full")
+
+        def save() -> None:
+            name = (name_input.value or "").strip()
+            if not name:
+                ui.notify("Please enter a name", type="warning")
+                return
+            try:
+                new_id = db.add_claimant(name, color=color_input.value or "#6366f1")
+            except Exception:
+                ui.notify("Claimant already exists", type="warning")
+                return
+            dialog.close()
+            on_created(new_id, name, color_input.value or "#6366f1")
+
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Add", on_click=save).props("color=primary")
+    dialog.open()
+
+
+def edit_claimant_color_dialog(claimant_id: int, name: str, current_color: str) -> None:
+    """Open a dialog to change a claimant's badge color."""
+    with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
+        ui.label(f"Badge color — {name}").classes("text-lg font-medium")
+        color_input = ui.color_input("Badge color", value=current_color).classes("w-full")
+
+        def save() -> None:
+            db.update_claimant_color(claimant_id, color_input.value or current_color)
+            dialog.close()
+            refresh_page()
+
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Save", on_click=save).props("color=primary")
+    dialog.open()
+
+
 def claim_form_dialog(existing: dict | None = None) -> None:
     """Open a dialog to create a new claim or edit an existing one."""
     editing = existing is not None
@@ -80,6 +123,25 @@ def claim_form_dialog(existing: dict | None = None) -> None:
             "Provider / doctor",
             value=existing["provider"] if editing else "",
         ).classes("w-full")
+
+        claimants = db.list_claimants()
+        claimant_options = {c["id"]: c["name"] for c in claimants}
+        current_claimant = existing.get("claimant_id") if editing else None
+
+        with ui.row().classes("w-full items-end gap-2"):
+            claimant_sel = ui.select(
+                claimant_options,
+                label="Claimant *",
+                value=current_claimant,
+            ).classes("flex-1")
+
+            def on_claimant_created(new_id: int, name: str, color: str = "#6366f1") -> None:
+                claimant_sel.options[new_id] = name
+                claimant_sel.value = new_id
+                claimant_sel.update()
+
+            ui.button(icon="add", on_click=lambda: add_claimant_dialog(on_claimant_created)) \
+                .props("flat round dense").classes("mb-1")
 
         amount = ui.number(
             "Amount (€)", format="%.2f",
@@ -110,6 +172,9 @@ def claim_form_dialog(existing: dict | None = None) -> None:
             if not title.value or not title.value.strip():
                 ui.notify("Please enter a title", type="warning")
                 return
+            if not claimant_sel.value:
+                ui.notify("Please select a claimant", type="warning")
+                return
             fields = dict(
                 title=title.value.strip(),
                 provider=(provider.value or "").strip(),
@@ -119,6 +184,7 @@ def claim_form_dialog(existing: dict | None = None) -> None:
                 notes=(notes.value or "").strip(),
                 public_ref=(public_ref.value or "").strip(),
                 private_ref=(private_ref.value or "").strip(),
+                claimant_id=claimant_sel.value,
             )
             if editing:
                 db.update_claim(existing["id"], **fields)
@@ -326,9 +392,20 @@ def build_claim_detail(claim: dict) -> None:
 
         # ---- footer: edit + delete ---------------------------------------
         with ui.row().classes("w-full justify-between border-t pt-2"):
-            ui.button("Edit details",
-                      on_click=lambda: claim_form_dialog(claim)) \
-                .props("flat size=sm")
+            with ui.row().classes("gap-1"):
+                ui.button("Edit details",
+                          on_click=lambda: claim_form_dialog(claim)) \
+                    .props("flat size=sm")
+                if claim.get("claimant_id"):
+                    ui.button(
+                        icon="palette",
+                        on_click=lambda: edit_claimant_color_dialog(
+                            claim["claimant_id"],
+                            claim.get("claimant_name", ""),
+                            claim.get("claimant_color") or "#6366f1",
+                        ),
+                    ).props("flat round dense size=sm") \
+                     .tooltip(f"Change badge color for {claim.get('claimant_name', '')}")
             ui.button("Delete claim",
                       on_click=lambda: confirm_delete_dialog(claim)) \
                 .props("flat color=negative size=sm")
@@ -373,8 +450,10 @@ def build_claim_card(claim: dict) -> None:
             with ui.column().classes("items-end gap-1"):
                 with ui.row().classes("items-center gap-2 no-wrap"):
                     ui.label(claim["id"]).classes("text-xs font-mono text-gray-400")
-                    ui.badge(db.STAGES[claim["stage"]]) \
-                        .style(f"background:{color}")
+                    if claim.get("claimant_name"):
+                        claimant_color = claim.get("claimant_color") or "#6366f1"
+                        ui.badge(claim["claimant_name"], color=claimant_color)
+                    ui.badge(db.STAGES[claim["stage"]], color=color)
                 lbl = ui.label(("⚠ " if stale else "") + age_label)
                 lbl.classes("text-xs " +
                             ("text-amber-700 font-medium"

@@ -146,8 +146,18 @@ def init_db() -> None:
                 value TEXT NOT NULL
             );
             INSERT OR IGNORE INTO meta (key, value) VALUES ('claim_seq', '0');
+
+            CREATE TABLE IF NOT EXISTS claimants (
+                id    INTEGER PRIMARY KEY AUTOINCREMENT,
+                name  TEXT NOT NULL UNIQUE,
+                color TEXT NOT NULL DEFAULT '#6366f1'
+            );
             """
         )
+        # Migration: add claimant_id to claims if not present (existing DBs).
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(claims)").fetchall()]
+        if "claimant_id" not in cols:
+            conn.execute("ALTER TABLE claims ADD COLUMN claimant_id INTEGER REFERENCES claimants(id)")
 
 
 # --------------------------------------------------------------------------
@@ -163,13 +173,36 @@ def add_history(conn: sqlite3.Connection, claim_id: str, text: str) -> None:
 
 
 # --------------------------------------------------------------------------
+# Claimants
+# --------------------------------------------------------------------------
+
+def list_claimants() -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute("SELECT id, name, color FROM claimants ORDER BY name").fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_claimant(name: str, color: str = "#6366f1") -> int:
+    name = name.strip()
+    with get_connection() as conn:
+        conn.execute("INSERT INTO claimants (name, color) VALUES (?, ?)", (name, color))
+        return conn.execute("SELECT id FROM claimants WHERE name = ?", (name,)).fetchone()[0]
+
+
+def update_claimant_color(claimant_id: int, color: str) -> None:
+    with get_connection() as conn:
+        conn.execute("UPDATE claimants SET color = ? WHERE id = ?", (color, claimant_id))
+
+
+# --------------------------------------------------------------------------
 # Claim CRUD
 # --------------------------------------------------------------------------
 
 def create_claim(title: str, provider: str = "", amount: Optional[float] = None,
                   currency: str = "€", visit_date: str = "",
                   notes: str = "", public_ref: str = "",
-                  private_ref: str = "") -> str:
+                  private_ref: str = "",
+                  claimant_id: Optional[int] = None) -> str:
     """Insert a new claim in the 'scanned' stage. Returns its id."""
     ts = _now()
     with get_connection() as conn:
@@ -179,10 +212,10 @@ def create_claim(title: str, provider: str = "", amount: Optional[float] = None,
         conn.execute(
             """INSERT INTO claims
                (id, title, provider, amount, currency, visit_date, notes,
-                public_ref, private_ref, stage, created_at, staged_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scanned', ?, ?)""",
+                public_ref, private_ref, claimant_id, stage, created_at, staged_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scanned', ?, ?)""",
             (claim_id, title, provider, amount, currency, visit_date,
-             notes, public_ref, private_ref, ts, ts),
+             notes, public_ref, private_ref, claimant_id, ts, ts),
         )
         add_history(conn, claim_id, "Claim created - medical bill scanned.")
     return claim_id
@@ -191,7 +224,7 @@ def create_claim(title: str, provider: str = "", amount: Optional[float] = None,
 def update_claim(claim_id: str, **fields) -> None:
     """Update editable claim fields. Unknown keys are ignored."""
     allowed = {"title", "provider", "amount", "currency", "visit_date",
-               "notes", "public_ref", "private_ref"}
+               "notes", "public_ref", "private_ref", "claimant_id"}
     sets = {k: v for k, v in fields.items() if k in allowed}
     if not sets:
         return
@@ -246,32 +279,38 @@ def delete_claim(claim_id: str) -> None:
         conn.execute("DELETE FROM claims WHERE id = ?", (claim_id,))
 
 
+_CLAIM_SELECT = (
+    "SELECT c.*, cl.name AS claimant_name, cl.color AS claimant_color "
+    "FROM claims c LEFT JOIN claimants cl ON cl.id = c.claimant_id"
+)
+
+
 def get_claim(claim_id: str) -> Optional[dict]:
-    """Return one claim as a dict, or None."""
+    """Return one claim as a dict (with claimant_name), or None."""
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT * FROM claims WHERE id = ?", (claim_id,)
+            f"{_CLAIM_SELECT} WHERE c.id = ?", (claim_id,)
         ).fetchone()
         return dict(row) if row else None
 
 
 def list_claims(search: str = "", stage: str = "all") -> list[dict]:
-    """Return all claims, optionally filtered by search text and stage."""
-    query = "SELECT * FROM claims"
+    """Return all claims (with claimant_name), optionally filtered."""
     clauses, params = [], []
     if stage != "all":
-        clauses.append("stage = ?")
+        clauses.append("c.stage = ?")
         params.append(stage)
     if search:
         clauses.append(
-            "(LOWER(title) LIKE ? OR LOWER(COALESCE(provider,'')) LIKE ? "
-            "OR LOWER(COALESCE(notes,'')) LIKE ?)"
+            "(LOWER(c.title) LIKE ? OR LOWER(COALESCE(c.provider,'')) LIKE ? "
+            "OR LOWER(COALESCE(c.notes,'')) LIKE ?)"
         )
         like = f"%{search.lower()}%"
         params += [like, like, like]
+    query = _CLAIM_SELECT
     if clauses:
         query += " WHERE " + " AND ".join(clauses)
-    query += " ORDER BY created_at DESC"
+    query += " ORDER BY c.created_at DESC"
     with get_connection() as conn:
         return [dict(r) for r in conn.execute(query, params).fetchall()]
 
