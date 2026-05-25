@@ -236,29 +236,39 @@ def claim_form_dialog(existing: dict | None = None) -> None:
                 .props("flat round dense").classes("mb-1")
 
         claimants = db.list_claimants()
-        claimant_options = {c["id"]: c["name"] for c in claimants}
-        current_claimant = existing.get("claimant_id") if editing else None
+        selected_claimant_id: list[int | None] = [existing.get("claimant_id") if editing else None]
 
-        with ui.row().classes("w-full items-end gap-2"):
-            claimant_sel = ui.select(
-                claimant_options,
-                label="Claimant *",
-                value=current_claimant,
-            ).classes("flex-1")
+        ui.label("Claimant *").classes("text-xs text-gray-500 -mb-1")
+        badge_row = ui.row().classes("w-full flex-wrap gap-2 items-center")
 
-            def on_claimant_created(new_id: int, name: str, color: str = "#6366f1") -> None:
-                claimant_sel.options[new_id] = name
-                claimant_sel.value = new_id
-                claimant_sel.update()
+        def render_claimant_badges() -> None:
+            badge_row.clear()
+            with badge_row:
+                for c in db.list_claimants():
+                    cid, name, color = c["id"], c["name"], c["color"] or "#6366f1"
+                    selected = selected_claimant_id[0] == cid
+                    opacity = "1" if selected else "0.3"
+                    badge_el = ui.element("span").style(
+                        f"background:{color};color:#fff;font-size:0.8rem;"
+                        f"padding:4px 10px;border-radius:999px;cursor:pointer;"
+                        f"user-select:none;opacity:{opacity}"
+                    )
+                    with badge_el:
+                        ui.label(name).style("color:#fff;font-size:0.8rem")
 
-            def on_claimant_deleted(deleted_id: int) -> None:
-                claimant_sel.options.pop(deleted_id, None)
-                if claimant_sel.value == deleted_id:
-                    claimant_sel.value = None
-                claimant_sel.update()
+                    def on_badge_click(cid=cid):
+                        selected_claimant_id[0] = cid
+                        render_claimant_badges()
 
-            ui.button(icon="add", on_click=lambda: add_claimant_dialog(on_claimant_created)) \
-                .props("flat round dense").classes("mb-1")
+                    badge_el.on("click", on_badge_click)
+                ui.button(icon="add", on_click=lambda: add_claimant_dialog(on_claimant_created)) \
+                    .props("flat round dense").tooltip("Add claimant")
+
+        def on_claimant_created(new_id: int, name: str, color: str = "#6366f1") -> None:
+            selected_claimant_id[0] = new_id
+            render_claimant_badges()
+
+        render_claimant_badges()
 
         amount = ui.number(
             "Amount (€)", format="%.2f",
@@ -289,7 +299,7 @@ def claim_form_dialog(existing: dict | None = None) -> None:
             if not title.value or not title.value.strip():
                 ui.notify("Please enter a title", type="warning")
                 return
-            if not claimant_sel.value:
+            if not selected_claimant_id[0]:
                 ui.notify("Please select a claimant", type="warning")
                 return
             fields = dict(
@@ -301,7 +311,7 @@ def claim_form_dialog(existing: dict | None = None) -> None:
                 notes=(notes.value or "").strip(),
                 public_ref=(public_ref.value or "").strip(),
                 private_ref=(private_ref.value or "").strip(),
-                claimant_id=claimant_sel.value,
+                claimant_id=selected_claimant_id[0],
             )
             if editing:
                 db.update_claim(existing["id"], **fields)
