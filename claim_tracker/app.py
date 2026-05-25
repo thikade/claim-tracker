@@ -592,18 +592,26 @@ def build_claim_card(claim: dict) -> None:
 def metrics_row() -> None:
     """Render the four dashboard metric cards."""
     s = db.dashboard_stats()
-    # currency symbol from the most recent claim, fall back to euro
-    claims = db.list_claims()
-    cur = claims[0]["currency"] if claims else "€"
+    per_claimant = db.outstanding_by_claimant()
     cards = [
         ("Active claims", str(s["active"]), f"{s['total']} total", False),
-        ("Outstanding", f"{cur}{s['outstanding']:.2f}",
-         "not yet archived", False),
         ("Need attention", str(s["stale"]),
          "pending too long", s["stale"] > 0),
         ("Archived", str(s["archived"]), "completed", False),
     ]
     with ui.row().classes("w-full gap-3 no-wrap"):
+        # Outstanding card — per-claimant rows only
+        with ui.card().classes("flex-1 gap-0"):
+            ui.label("OUTSTANDING").classes("text-xs font-bold text-gray-400")
+            if per_claimant:
+                with ui.column().classes("gap-0 mt-1"):
+                    for row in per_claimant:
+                        with ui.row().classes("w-full justify-between gap-4"):
+                            ui.label(row["claimant_name"]).classes("text-sm font-medium")
+                            ui.label(f"€{row['total']:.2f}").classes("text-sm")
+            else:
+                ui.label("—").classes("text-2xl font-medium text-gray-300")
+
         for label, value, sub, flag in cards:
             with ui.card().classes("flex-1 gap-0"):
                 ui.label(label.upper()).classes(

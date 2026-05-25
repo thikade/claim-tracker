@@ -516,6 +516,22 @@ def dashboard_stats() -> dict:
     }
 
 
+def outstanding_by_claimant() -> list[dict]:
+    """Return non-zero outstanding amounts grouped by claimant, sorted by name."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT COALESCE(cl.name, '(unassigned)') AS claimant_name, "
+            "SUM(COALESCE(c.amount, 0)) AS total "
+            "FROM claims c "
+            "LEFT JOIN claimants cl ON cl.id = c.claimant_id "
+            "WHERE c.stage != 'archived' "
+            "GROUP BY c.claimant_id "
+            "HAVING total > 0 "
+            "ORDER BY claimant_name"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def is_stale(claim: dict) -> bool:
     """Return True if a claim has been pending longer than its threshold."""
     limit = STALE_DAYS.get(claim["stage"])
