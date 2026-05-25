@@ -57,7 +57,7 @@ def fmt_size(n: int | None) -> str:
 # runs single-worker, so this is safe for a local single-user tool.
 # --------------------------------------------------------------------------
 
-state = {"search": "", "stage": "all", "open_id": None}
+state = {"search": "", "stage": "active", "open_id": None}
 
 
 # --------------------------------------------------------------------------
@@ -709,9 +709,10 @@ def main_page() -> None:
             search.on_value_change(on_search)
 
             stage_sel = ui.select(
-                {"all": "All stages",
+                {"active": "Active claims",
+                 "all": "All stages",
                  **{k: db.STAGES[k] for k in db.STAGE_ORDER}},
-                value="all",
+                value="active",
             ).classes("w-44")
 
             def on_stage(e) -> None:

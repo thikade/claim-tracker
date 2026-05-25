@@ -397,7 +397,9 @@ def list_titles() -> list[str]:
 def list_claims(search: str = "", stage: str = "all") -> list[dict]:
     """Return all claims (with claimant_name), optionally filtered."""
     clauses, params = [], []
-    if stage != "all":
+    if stage == "active":
+        clauses.append("c.stage != 'archived'")
+    elif stage != "all":
         clauses.append("c.stage = ?")
         params.append(stage)
     if search:
