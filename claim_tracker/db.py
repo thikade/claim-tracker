@@ -140,6 +140,12 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_att_claim  ON attachments(claim_id);
             CREATE INDEX IF NOT EXISTS idx_hist_claim ON history(claim_id);
             CREATE INDEX IF NOT EXISTS idx_claim_stage ON claims(stage);
+
+            CREATE TABLE IF NOT EXISTS meta (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO meta (key, value) VALUES ('claim_seq', '0');
             """
         )
 
@@ -162,18 +168,21 @@ def add_history(conn: sqlite3.Connection, claim_id: str, text: str) -> None:
 
 def create_claim(title: str, provider: str = "", amount: Optional[float] = None,
                   currency: str = "€", visit_date: str = "",
-                  notes: str = "") -> str:
+                  notes: str = "", public_ref: str = "",
+                  private_ref: str = "") -> str:
     """Insert a new claim in the 'scanned' stage. Returns its id."""
-    claim_id = uuid.uuid4().hex[:12]
     ts = _now()
     with get_connection() as conn:
+        conn.execute("UPDATE meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'claim_seq'")
+        seq = conn.execute("SELECT value FROM meta WHERE key = 'claim_seq'").fetchone()[0]
+        claim_id = f"CLM-{int(seq):04d}"
         conn.execute(
             """INSERT INTO claims
                (id, title, provider, amount, currency, visit_date, notes,
-                stage, created_at, staged_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'scanned', ?, ?)""",
+                public_ref, private_ref, stage, created_at, staged_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scanned', ?, ?)""",
             (claim_id, title, provider, amount, currency, visit_date,
-             notes, ts, ts),
+             notes, public_ref, private_ref, ts, ts),
         )
         add_history(conn, claim_id, "Claim created - medical bill scanned.")
     return claim_id

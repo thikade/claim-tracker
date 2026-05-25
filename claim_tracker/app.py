@@ -9,7 +9,7 @@ separate backend service.
 from __future__ import annotations
 
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from nicegui import ui, app
@@ -81,20 +81,14 @@ def claim_form_dialog(existing: dict | None = None) -> None:
             value=existing["provider"] if editing else "",
         ).classes("w-full")
 
-        with ui.row().classes("w-full gap-2"):
-            amount = ui.number(
-                "Amount", format="%.2f",
-                value=existing["amount"] if editing else None,
-            ).classes("flex-1")
-            currency = ui.select(
-                ["€", "$", "£", "CHF", "Kč"],
-                label="Currency",
-                value=existing["currency"] if editing else "€",
-            ).classes("w-24")
+        amount = ui.number(
+            "Amount (€)", format="%.2f",
+            value=existing["amount"] if editing else None,
+        ).classes("w-full")
 
         visit = ui.input(
             "Visit date",
-            value=existing["visit_date"] if editing else "",
+            value=existing["visit_date"] if editing else (datetime.utcnow().date() - timedelta(days=1)).isoformat(),
         ).props("type=date").classes("w-full")
 
         # Portal reference numbers - handy once a claim is submitted.
@@ -120,7 +114,7 @@ def claim_form_dialog(existing: dict | None = None) -> None:
                 title=title.value.strip(),
                 provider=(provider.value or "").strip(),
                 amount=amount.value,
-                currency=currency.value or "€",
+                currency="€",
                 visit_date=visit.value or "",
                 notes=(notes.value or "").strip(),
                 public_ref=(public_ref.value or "").strip(),
@@ -195,9 +189,9 @@ def upload_dialog(claim_id: str, kind: str) -> None:
         label = "Add bill" if kind == "bill" else "Add document"
         ui.label(label).classes("text-lg font-medium")
 
-        def on_upload(e) -> None:
-            content = e.content.read()
-            db.add_attachment(claim_id, e.name, content, kind=kind)
+        async def on_upload(e) -> None:
+            content = await e.file.read()
+            db.add_attachment(claim_id, e.file.name, content, kind=kind)
             dialog.close()
             ui.notify("Document attached", type="positive")
             refresh_page()
@@ -377,8 +371,10 @@ def build_claim_card(claim: dict) -> None:
                     .classes("text-xs text-gray-500 truncate")
 
             with ui.column().classes("items-end gap-1"):
-                ui.badge(db.STAGES[claim["stage"]]) \
-                    .style(f"background:{color}")
+                with ui.row().classes("items-center gap-2 no-wrap"):
+                    ui.label(claim["id"]).classes("text-xs font-mono text-gray-400")
+                    ui.badge(db.STAGES[claim["stage"]]) \
+                        .style(f"background:{color}")
                 lbl = ui.label(("⚠ " if stale else "") + age_label)
                 lbl.classes("text-xs " +
                             ("text-amber-700 font-medium"
@@ -526,7 +522,7 @@ def run() -> None:
     ui.run(
         title="Insurance Claim Tracker",
         port=8080,
-        reload=False,
+        reload=True,
         show=True,        # open the browser automatically
         favicon="🧾",
     )
