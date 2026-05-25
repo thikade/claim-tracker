@@ -269,8 +269,6 @@ def claim_form_dialog(existing: dict | None = None) -> None:
                         render_claimant_badges()
 
                     badge_el.on("click", on_badge_click)
-                ui.button(icon="add", on_click=lambda: add_claimant_dialog(on_claimant_created)) \
-                    .props("flat round dense").tooltip(t("Add claimant"))
 
         def on_claimant_created(new_id: int, name: str, color: str = "#6366f1") -> None:
             selected_claimant_id[0] = new_id
