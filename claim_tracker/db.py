@@ -32,7 +32,7 @@ FILES_DIR = DATA_DIR / "attachments"
 # --------------------------------------------------------------------------
 
 STAGES = {
-    "scanned":         "Bill scanned",
+    "scanned":         "Claim created",
     "public_pending":  "Public claim pending",
     "private_pending": "Private claim pending",
     "archived":        "Archived",
@@ -305,7 +305,7 @@ def create_claim(title: str, provider_id: Optional[int] = None,
             (claim_id, title, provider_id, amount, currency, visit_date,
              notes, public_ref, private_ref, claimant_id, ts, ts),
         )
-        add_history(conn, claim_id, "Claim created - medical bill scanned.")
+        add_history(conn, claim_id, "Claim created.")
     return claim_id
 
 
@@ -439,8 +439,12 @@ def add_attachment(claim_id: str, original_name: str, content: bytes,
             (att_id, claim_id, kind, original_name, str(stored),
              len(content), _now()),
         )
-        verb = {"bill": "Bill", "confirmation": "Confirmation"}.get(
-            kind, "Document")
+        verb = {
+            "bill":           "Medical bill",
+            "prescription":   "Prescription",
+            "bank_statement": "Bank statement",
+            "confirmation":   "Confirmation",
+        }.get(kind, "Document")
         add_history(conn, claim_id,
                     f'{verb} "{original_name}" attached.')
     return att_id
@@ -459,7 +463,7 @@ def delete_attachment(att_id: str) -> None:
     """Delete one attachment row and its file on disk."""
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT claim_id, name, stored_path FROM attachments WHERE id = ?",
+            "SELECT claim_id, name, kind, stored_path FROM attachments WHERE id = ?",
             (att_id,),
         ).fetchone()
         if row is None:
@@ -471,8 +475,14 @@ def delete_attachment(att_id: str) -> None:
             except OSError:
                 pass
         conn.execute("DELETE FROM attachments WHERE id = ?", (att_id,))
+        verb = {
+            "bill":           "Medical bill",
+            "prescription":   "Prescription",
+            "bank_statement": "Bank statement",
+            "confirmation":   "Confirmation",
+        }.get(row["kind"], "Document")
         add_history(conn, row["claim_id"],
-                    f'Document "{row["name"]}" removed.')
+                    f'{verb} "{row["name"]}" removed.')
 
 
 # --------------------------------------------------------------------------

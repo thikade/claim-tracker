@@ -272,7 +272,7 @@ def claim_form_dialog(existing: dict | None = None) -> None:
 
         # Portal reference numbers - handy once a claim is submitted.
         public_ref = ui.input(
-            "Public portal reference",
+            "Public insurer reference",
             value=existing.get("public_ref") or "" if editing else "",
         ).classes("w-full")
         private_ref = ui.input(
@@ -366,15 +366,21 @@ def move_dialog(claim: dict, transition: dict) -> None:
     dialog.open()
 
 
-def upload_dialog(claim_id: str, kind: str) -> None:
-    """Open a dialog to attach a bill or other document to a claim."""
+def upload_dialog(claim_id: str) -> None:
+    """Open a dialog to attach a document to a claim."""
+    doc_types = {
+        "bill":         "Medical bill",
+        "prescription": "Prescription",
+        "bank_statement": "Bank statement",
+        "other":        "Other",
+    }
     with ui.dialog() as dialog, ui.card().classes("w-96 gap-2"):
-        label = "Add bill" if kind == "bill" else "Add document"
-        ui.label(label).classes("text-lg font-medium")
+        ui.label("Add document").classes("text-lg font-medium")
+        kind_sel = ui.select(doc_types, value="bill", label="Document type").classes("w-full")
 
         async def on_upload(e) -> None:
             content = await e.file.read()
-            db.add_attachment(claim_id, e.file.name, content, kind=kind)
+            db.add_attachment(claim_id, e.file.name, content, kind=kind_sel.value)
             dialog.close()
             ui.notify("Document attached", type="positive")
             refresh_page()
@@ -489,12 +495,8 @@ def build_claim_detail(claim: dict) -> None:
                         .classes("text-sm text-gray-400")
                 with ui.row().classes("gap-2"):
                     ui.button(
-                        "+ Add bill",
-                        on_click=lambda: upload_dialog(claim["id"], "bill"),
-                    ).props("outline size=sm")
-                    ui.button(
                         "+ Add document",
-                        on_click=lambda: upload_dialog(claim["id"], "other"),
+                        on_click=lambda c=claim: upload_dialog(c["id"]),
                     ).props("outline size=sm")
 
             # history column

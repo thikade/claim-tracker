@@ -62,7 +62,8 @@ Always activate the venv with `source venv/bin/activate` before running Python c
   files; only the path + metadata go into the `attachments` table. This keeps
   the DB small and documents recoverable from the filesystem. Filenames are
   `{claim_id}_{uuid12}{ext}` (e.g. `CLM-0001_3f8a2c1d4e9b.pdf`). Each
-  attachment has a `kind`: `bill`, `confirmation`, or `other`.
+  attachment has a `kind`: `bill`, `prescription`, `bank_statement`,
+  `confirmation`, or `other`.
 - **History:** every meaningful action appends a row to the `history` table
   via `db.add_history()`. Any new mutating operation should also log history.
 - **Staleness:** `db.STALE_DAYS` sets per-stage thresholds (public 35d,
@@ -115,10 +116,25 @@ Always activate the venv with `source venv/bin/activate` before running Python c
 - Removed currency selector; amount fixed to EUR (€).
 - Enabled `reload=True` for hot-reload during development.
 
-## Open items / next steps
+### 2026-05-25 — Feature additions (session 3)
+- Added claimants with colored badges; click badge to edit color.
+- Provider / doctor field converted to managed dropdown (like claimants).
+- Settings page (`/settings`) with full add/edit/delete for claimants and providers.
+- Archive-from-any-stage transitions added (`scanned` and `public_pending`).
+- Outstanding dashboard card now shows per-claimant breakdown (no total).
+- Search extended to match claimant name.
+- Title field autocompletes from existing claim titles.
+- Upload dialog consolidated into single "Add document" with type selector
+  (Medical bill, Prescription, Bank statement, Other).
+- Renamed: "Bill scanned" → "Claim created", "Public portal reference" → "Public insurer reference".
+
+## Open items / planned enhancements
 
 - [x] First live run of the NiceGUI app — runtime bugs fixed (see 2026-05-25 session 2).
-- [ ] Consider a `.gitignore` (exclude `data/`, `__pycache__/`, `*.pyc`,
+- [ ] **Duplicate claim button:** on each claim card, quickly create a new claim
+      with all fields pre-filled (title, provider, claimant, amount, notes, refs)
+      but visit date reset to yesterday and stage reset to `scanned`.
+- [x] Consider a `.gitignore` (exclude `data/`, `__pycache__/`, `*.pyc`,
       `claims.db*`) if the project goes under version control.
 - [ ] Possible enhancement: CSV/JSON export of all claims for tax records.
 - [ ] Possible enhancement: a desktop-window mode via `ui.run(native=True)`
