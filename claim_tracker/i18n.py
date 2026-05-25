@@ -86,6 +86,7 @@ _DE: dict[str, str] = {
 
     # Attachment
     "Click to change document type": "Klicken zum Ändern des Dokumenttyps",
+    "Shift-click to delete": "Shift+Klick zum Löschen",
     "Add document": "Dokument hinzufügen",
     "Document type": "Dokumenttyp",
     "Choose file": "Datei auswählen",

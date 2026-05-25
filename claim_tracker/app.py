@@ -581,19 +581,15 @@ def build_claim_detail(claim: dict) -> None:
                     "text-xs font-bold text-gray-400")
                 for h in db.list_history(claim["id"]):
                     with ui.row().classes("items-start gap-1 mb-1"):
-                        def remove_entry(entry_id=h["id"]) -> None:
-                            with ui.dialog() as confirm, ui.card():
-                                ui.label(t("Remove this history entry?"))
-                                with ui.row().classes("justify-end gap-2 w-full"):
-                                    ui.button(t("Cancel"), on_click=confirm.close).props("flat")
-                                    def do_delete(eid=entry_id) -> None:
-                                        db.delete_history_entry(eid)
-                                        confirm.close()
-                                        refresh_page()
-                                    ui.button(t("Remove"), on_click=do_delete).props("color=negative flat")
-                            confirm.open()
-                        ui.button(icon="close", on_click=remove_entry) \
-                            .props("flat round dense size=xs").classes("text-gray-300 mt-0.5")
+                        def remove_entry(e, entry_id=h["id"]) -> None:
+                            if not e.args.get('shiftKey'):
+                                return
+                            db.delete_history_entry(entry_id)
+                            refresh_page()
+                        ui.button(icon="close") \
+                            .on('click', remove_entry) \
+                            .props("flat round dense size=xs").classes("text-gray-300 mt-0.5") \
+                            .tooltip(t("Shift-click to delete"))
                         with ui.column().classes("gap-0"):
                             ui.label(h["text"]).classes("text-sm")
                             ui.label(fmt_datetime(h["ts"])) \
