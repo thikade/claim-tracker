@@ -119,6 +119,7 @@ def init_db() -> None:
                 amount      REAL,
                 currency    TEXT NOT NULL DEFAULT '€',
                 visit_date  TEXT,
+                bill_date   TEXT,
                 notes       TEXT,
                 stage       TEXT NOT NULL DEFAULT 'scanned',
                 created_at  TEXT NOT NULL,
@@ -175,6 +176,9 @@ def init_db() -> None:
         # Migration: add provider_id to claims if not present (existing DBs).
         if "provider_id" not in cols:
             conn.execute("ALTER TABLE claims ADD COLUMN provider_id INTEGER REFERENCES providers(id)")
+        # Migration: add bill_date to claims if not present (existing DBs).
+        if "bill_date" not in cols:
+            conn.execute("ALTER TABLE claims ADD COLUMN bill_date TEXT")
 
     load_stale_days()
 
@@ -317,6 +321,7 @@ def list_unassigned_providers() -> list[dict]:
 def create_claim(title: str, provider_id: Optional[int] = None,
                   amount: Optional[float] = None,
                   currency: str = "€", visit_date: str = "",
+                  bill_date: str = "",
                   notes: str = "", public_ref: str = "",
                   private_ref: str = "",
                   claimant_id: Optional[int] = None) -> str:
@@ -328,10 +333,10 @@ def create_claim(title: str, provider_id: Optional[int] = None,
         claim_id = f"CLM-{int(seq):04d}"
         conn.execute(
             """INSERT INTO claims
-               (id, title, provider_id, amount, currency, visit_date, notes,
+               (id, title, provider_id, amount, currency, visit_date, bill_date, notes,
                 public_ref, private_ref, claimant_id, stage, created_at, staged_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scanned', ?, ?)""",
-            (claim_id, title, provider_id, amount, currency, visit_date,
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scanned', ?, ?)""",
+            (claim_id, title, provider_id, amount, currency, visit_date, bill_date,
              notes, public_ref, private_ref, claimant_id, ts, ts),
         )
         add_history(conn, claim_id, "Claim created.")
@@ -341,7 +346,7 @@ def create_claim(title: str, provider_id: Optional[int] = None,
 def update_claim(claim_id: str, **fields) -> None:
     """Update editable claim fields. Unknown keys are ignored."""
     allowed = {"title", "provider_id", "amount", "currency", "visit_date",
-               "notes", "public_ref", "private_ref", "claimant_id"}
+               "bill_date", "notes", "public_ref", "private_ref", "claimant_id"}
     sets = {k: v for k, v in fields.items() if k in allowed}
     if not sets:
         return

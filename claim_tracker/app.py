@@ -275,10 +275,22 @@ def claim_form_dialog(existing: dict | None = None) -> None:
             value=existing["amount"] if editing else None,
         ).classes("w-full")
 
+        default_date = (datetime.utcnow().date() - timedelta(days=1)).isoformat()
         visit = ui.input(
             "Visit date",
-            value=existing["visit_date"] if editing else (datetime.utcnow().date() - timedelta(days=1)).isoformat(),
+            value=existing["visit_date"] if editing else default_date,
         ).props("type=date").classes("w-full")
+
+        bill = ui.input(
+            "Bill date",
+            value=(existing.get("bill_date") or existing["visit_date"]) if editing else default_date,
+        ).props("type=date").classes("w-full")
+
+        def sync_bill_date() -> None:
+            if bill.value == "" or not editing:
+                bill.value = visit.value
+
+        visit.on("change", lambda _: sync_bill_date())
 
         # Portal reference numbers - handy once a claim is submitted.
         public_ref = ui.input(
@@ -308,6 +320,7 @@ def claim_form_dialog(existing: dict | None = None) -> None:
                 amount=amount.value,
                 currency="€",
                 visit_date=visit.value or "",
+                bill_date=bill.value or "",
                 notes=(notes.value or "").strip(),
                 public_ref=(public_ref.value or "").strip(),
                 private_ref=(private_ref.value or "").strip(),
@@ -748,11 +761,24 @@ def toolbar() -> None:
 # Main page
 # --------------------------------------------------------------------------
 
+_DATE_WHEEL_JS = """
+<script>
+document.addEventListener('wheel', function(e) {
+    if (e.target.type === 'date') {
+        e.preventDefault();
+        if (e.deltaY < 0) { e.target.stepUp(); } else { e.target.stepDown(); }
+        e.target.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}, { passive: false });
+</script>
+"""
+
+
 @ui.page("/")
 def main_page() -> None:
     ui.colors(primary="#2c5f4f")
-    ui.add_head_html(
-        "<style>body{background:#f4f2ec}</style>")
+    ui.add_head_html("<style>body{background:#f4f2ec}</style>")
+    ui.add_head_html(_DATE_WHEEL_JS)
 
     with ui.column().classes("w-full max-w-4xl mx-auto p-6 gap-4"):
 
@@ -794,6 +820,7 @@ def main_page() -> None:
 def settings_page() -> None:
     ui.colors(primary="#2c5f4f")
     ui.add_head_html("<style>body{background:#f4f2ec}</style>")
+    ui.add_head_html(_DATE_WHEEL_JS)
 
     with ui.column().classes("w-full max-w-3xl mx-auto p-6 gap-6"):
 
