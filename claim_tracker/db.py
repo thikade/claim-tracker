@@ -194,6 +194,28 @@ def update_claimant_color(claimant_id: int, color: str) -> None:
         conn.execute("UPDATE claimants SET color = ? WHERE id = ?", (color, claimant_id))
 
 
+def delete_claimant(claimant_id: int) -> None:
+    """Delete a claimant. Raises ValueError if any claim references them."""
+    with get_connection() as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM claims WHERE claimant_id = ?", (claimant_id,)
+        ).fetchone()[0]
+        if count > 0:
+            raise ValueError("Claimant is assigned to one or more claims")
+        conn.execute("DELETE FROM claimants WHERE id = ?", (claimant_id,))
+
+
+def list_unassigned_claimants() -> list[dict]:
+    """Return claimants not referenced by any claim."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, name, color FROM claimants "
+            "WHERE id NOT IN (SELECT DISTINCT claimant_id FROM claims WHERE claimant_id IS NOT NULL) "
+            "ORDER BY name"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 # --------------------------------------------------------------------------
 # Claim CRUD
 # --------------------------------------------------------------------------

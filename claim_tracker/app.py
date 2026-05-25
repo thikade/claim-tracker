@@ -91,6 +91,37 @@ def add_claimant_dialog(on_created) -> None:
     dialog.open()
 
 
+def delete_claimant_dialog(on_deleted=None) -> None:
+    """Open a dialog listing unassigned claimants with a delete button each."""
+    unassigned = db.list_unassigned_claimants()
+    with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
+        ui.label("Delete claimant").classes("text-lg font-medium")
+        if not unassigned:
+            ui.label("No unassigned claimants.").classes("text-gray-500 text-sm")
+        else:
+            for c in unassigned:
+                def make_delete(cid: int, cname: str):
+                    def do_delete():
+                        try:
+                            db.delete_claimant(cid)
+                            ui.notify(f"{cname} deleted", type="positive")
+                            dialog.close()
+                            if on_deleted:
+                                on_deleted(cid)
+                        except ValueError as exc:
+                            ui.notify(str(exc), type="warning")
+                    return do_delete
+
+                with ui.row().classes("w-full items-center justify-between"):
+                    ui.label(c["name"])
+                    ui.button(icon="remove", on_click=make_delete(c["id"], c["name"])) \
+                        .props("flat round dense color=negative")
+
+        with ui.row().classes("w-full justify-end"):
+            ui.button("Close", on_click=dialog.close).props("flat")
+    dialog.open()
+
+
 def edit_claimant_color_dialog(claimant_id: int, name: str, current_color: str) -> None:
     """Open a dialog to change a claimant's badge color."""
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
@@ -142,8 +173,16 @@ def claim_form_dialog(existing: dict | None = None) -> None:
                 claimant_sel.value = new_id
                 claimant_sel.update()
 
+            def on_claimant_deleted(deleted_id: int) -> None:
+                claimant_sel.options.pop(deleted_id, None)
+                if claimant_sel.value == deleted_id:
+                    claimant_sel.value = None
+                claimant_sel.update()
+
             ui.button(icon="add", on_click=lambda: add_claimant_dialog(on_claimant_created)) \
                 .props("flat round dense").classes("mb-1")
+            ui.button(icon="remove", on_click=lambda: delete_claimant_dialog(on_claimant_deleted)) \
+                .props("flat round dense color=negative").classes("mb-1")
 
         amount = ui.number(
             "Amount (€)", format="%.2f",
