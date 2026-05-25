@@ -122,6 +122,62 @@ def delete_claimant_dialog(on_deleted=None) -> None:
     dialog.open()
 
 
+def add_provider_dialog(on_created) -> None:
+    """Open a dialog to add a new provider."""
+    with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
+        ui.label("New provider").classes("text-lg font-medium")
+        name_input = ui.input("Name").classes("w-full")
+
+        def save() -> None:
+            name = (name_input.value or "").strip()
+            if not name:
+                ui.notify("Please enter a name", type="warning")
+                return
+            try:
+                new_id = db.add_provider(name)
+            except Exception:
+                ui.notify("Provider already exists", type="warning")
+                return
+            dialog.close()
+            on_created(new_id, name)
+
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Add", on_click=save).props("color=primary")
+    dialog.open()
+
+
+def delete_provider_dialog(on_deleted=None) -> None:
+    """Open a dialog listing unassigned providers with a delete button each."""
+    unassigned = db.list_unassigned_providers()
+    with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
+        ui.label("Delete provider").classes("text-lg font-medium")
+        if not unassigned:
+            ui.label("No unassigned providers.").classes("text-gray-500 text-sm")
+        else:
+            for p in unassigned:
+                def make_delete(pid: int, pname: str):
+                    def do_delete():
+                        try:
+                            db.delete_provider(pid)
+                            ui.notify(f"{pname} deleted", type="positive")
+                            dialog.close()
+                            if on_deleted:
+                                on_deleted(pid)
+                        except ValueError as exc:
+                            ui.notify(str(exc), type="warning")
+                    return do_delete
+
+                with ui.row().classes("w-full items-center justify-between"):
+                    ui.label(p["name"])
+                    ui.button(icon="remove", on_click=make_delete(p["id"], p["name"])) \
+                        .props("flat round dense color=negative")
+
+        with ui.row().classes("w-full justify-end"):
+            ui.button("Close", on_click=dialog.close).props("flat")
+    dialog.open()
+
+
 def edit_claimant_color_dialog(claimant_id: int, name: str, current_color: str) -> None:
     """Open a dialog to change a claimant's badge color."""
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
@@ -152,10 +208,33 @@ def claim_form_dialog(existing: dict | None = None) -> None:
             placeholder="e.g. Dr. Müller - physiotherapy",
             value=existing["title"] if editing else "",
         ).classes("w-full")
-        provider = ui.input(
-            "Provider / doctor",
-            value=existing["provider"] if editing else "",
-        ).classes("w-full")
+
+        providers = db.list_providers()
+        provider_options = {p["id"]: p["name"] for p in providers}
+        current_provider = existing.get("provider_id") if editing else None
+
+        with ui.row().classes("w-full items-end gap-2"):
+            provider_sel = ui.select(
+                provider_options,
+                label="Provider / doctor",
+                value=current_provider,
+            ).classes("flex-1")
+
+            def on_provider_created(new_id: int, name: str) -> None:
+                provider_sel.options[new_id] = name
+                provider_sel.value = new_id
+                provider_sel.update()
+
+            def on_provider_deleted(deleted_id: int) -> None:
+                provider_sel.options.pop(deleted_id, None)
+                if provider_sel.value == deleted_id:
+                    provider_sel.value = None
+                provider_sel.update()
+
+            ui.button(icon="add", on_click=lambda: add_provider_dialog(on_provider_created)) \
+                .props("flat round dense").classes("mb-1")
+            ui.button(icon="remove", on_click=lambda: delete_provider_dialog(on_provider_deleted)) \
+                .props("flat round dense color=negative").classes("mb-1")
 
         claimants = db.list_claimants()
         claimant_options = {c["id"]: c["name"] for c in claimants}
@@ -218,7 +297,7 @@ def claim_form_dialog(existing: dict | None = None) -> None:
                 return
             fields = dict(
                 title=title.value.strip(),
-                provider=(provider.value or "").strip(),
+                provider_id=provider_sel.value,
                 amount=amount.value,
                 currency="€",
                 visit_date=visit.value or "",
@@ -479,8 +558,8 @@ def build_claim_card(claim: dict) -> None:
                 ui.label(claim["title"]).classes(
                     "text-base font-medium truncate")
                 meta = []
-                if claim["provider"]:
-                    meta.append(claim["provider"])
+                if claim.get("provider_name"):
+                    meta.append(claim["provider_name"])
                 if claim["amount"]:
                     meta.append(f"{claim['currency']}"
                                 f"{claim['amount']:.2f}")

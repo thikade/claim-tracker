@@ -158,12 +158,20 @@ def init_db() -> None:
                 name  TEXT NOT NULL UNIQUE,
                 color TEXT NOT NULL DEFAULT '#6366f1'
             );
+
+            CREATE TABLE IF NOT EXISTS providers (
+                id   INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
+            );
             """
         )
         # Migration: add claimant_id to claims if not present (existing DBs).
         cols = [r[1] for r in conn.execute("PRAGMA table_info(claims)").fetchall()]
         if "claimant_id" not in cols:
             conn.execute("ALTER TABLE claims ADD COLUMN claimant_id INTEGER REFERENCES claimants(id)")
+        # Migration: add provider_id to claims if not present (existing DBs).
+        if "provider_id" not in cols:
+            conn.execute("ALTER TABLE claims ADD COLUMN provider_id INTEGER REFERENCES providers(id)")
 
 
 # --------------------------------------------------------------------------
@@ -223,10 +231,50 @@ def list_unassigned_claimants() -> list[dict]:
 
 
 # --------------------------------------------------------------------------
+# Providers
+# --------------------------------------------------------------------------
+
+def list_providers() -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute("SELECT id, name FROM providers ORDER BY name").fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_provider(name: str) -> int:
+    name = name.strip()
+    with get_connection() as conn:
+        conn.execute("INSERT INTO providers (name) VALUES (?)", (name,))
+        return conn.execute("SELECT id FROM providers WHERE name = ?", (name,)).fetchone()[0]
+
+
+def delete_provider(provider_id: int) -> None:
+    """Delete a provider. Raises ValueError if any claim references them."""
+    with get_connection() as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM claims WHERE provider_id = ?", (provider_id,)
+        ).fetchone()[0]
+        if count > 0:
+            raise ValueError("Provider is assigned to one or more claims")
+        conn.execute("DELETE FROM providers WHERE id = ?", (provider_id,))
+
+
+def list_unassigned_providers() -> list[dict]:
+    """Return providers not referenced by any claim."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, name FROM providers "
+            "WHERE id NOT IN (SELECT DISTINCT provider_id FROM claims WHERE provider_id IS NOT NULL) "
+            "ORDER BY name"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# --------------------------------------------------------------------------
 # Claim CRUD
 # --------------------------------------------------------------------------
 
-def create_claim(title: str, provider: str = "", amount: Optional[float] = None,
+def create_claim(title: str, provider_id: Optional[int] = None,
+                  amount: Optional[float] = None,
                   currency: str = "€", visit_date: str = "",
                   notes: str = "", public_ref: str = "",
                   private_ref: str = "",
@@ -239,10 +287,10 @@ def create_claim(title: str, provider: str = "", amount: Optional[float] = None,
         claim_id = f"CLM-{int(seq):04d}"
         conn.execute(
             """INSERT INTO claims
-               (id, title, provider, amount, currency, visit_date, notes,
+               (id, title, provider_id, amount, currency, visit_date, notes,
                 public_ref, private_ref, claimant_id, stage, created_at, staged_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scanned', ?, ?)""",
-            (claim_id, title, provider, amount, currency, visit_date,
+            (claim_id, title, provider_id, amount, currency, visit_date,
              notes, public_ref, private_ref, claimant_id, ts, ts),
         )
         add_history(conn, claim_id, "Claim created - medical bill scanned.")
@@ -251,7 +299,7 @@ def create_claim(title: str, provider: str = "", amount: Optional[float] = None,
 
 def update_claim(claim_id: str, **fields) -> None:
     """Update editable claim fields. Unknown keys are ignored."""
-    allowed = {"title", "provider", "amount", "currency", "visit_date",
+    allowed = {"title", "provider_id", "amount", "currency", "visit_date",
                "notes", "public_ref", "private_ref", "claimant_id"}
     sets = {k: v for k, v in fields.items() if k in allowed}
     if not sets:
@@ -308,8 +356,11 @@ def delete_claim(claim_id: str) -> None:
 
 
 _CLAIM_SELECT = (
-    "SELECT c.*, cl.name AS claimant_name, cl.color AS claimant_color "
-    "FROM claims c LEFT JOIN claimants cl ON cl.id = c.claimant_id"
+    "SELECT c.*, cl.name AS claimant_name, cl.color AS claimant_color, "
+    "p.name AS provider_name "
+    "FROM claims c "
+    "LEFT JOIN claimants cl ON cl.id = c.claimant_id "
+    "LEFT JOIN providers p ON p.id = c.provider_id"
 )
 
 
@@ -330,7 +381,7 @@ def list_claims(search: str = "", stage: str = "all") -> list[dict]:
         params.append(stage)
     if search:
         clauses.append(
-            "(LOWER(c.title) LIKE ? OR LOWER(COALESCE(c.provider,'')) LIKE ? "
+            "(LOWER(c.title) LIKE ? OR LOWER(COALESCE(p.name,'')) LIKE ? "
             "OR LOWER(COALESCE(c.notes,'')) LIKE ?)"
         )
         like = f"%{search.lower()}%"
