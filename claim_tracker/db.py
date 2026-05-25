@@ -57,12 +57,18 @@ TRANSITIONS = {
         {"to": "private_pending",
          "label": "Submit directly to private insurer",
          "needs_doc": False},
+        {"to": "archived",
+         "label": "Archive directly",
+         "needs_doc": False},
     ],
     "public_pending": [
         {"to": "private_pending",
          "label": "Public claim processed - file private claim",
          "needs_doc": True,
          "doc_hint": "Attach the public health service confirmation"},
+        {"to": "archived",
+         "label": "Archive directly",
+         "needs_doc": False},
     ],
     "private_pending": [
         {"to": "archived",
