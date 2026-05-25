@@ -70,6 +70,7 @@ def add_claimant_dialog(on_created) -> None:
         ui.label("New claimant").classes("text-lg font-medium")
         name_input = ui.input("Full name").classes("w-full")
         color_input = ui.color_input("Badge color", value="#6366f1").classes("w-full")
+        color_input.picker.q_color.props('default-view="palette"')
 
         def save() -> None:
             name = (name_input.value or "").strip()
@@ -95,6 +96,7 @@ def edit_claimant_color_dialog(claimant_id: int, name: str, current_color: str) 
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
         ui.label(f"Badge color — {name}").classes("text-lg font-medium")
         color_input = ui.color_input("Badge color", value=current_color).classes("w-full")
+        color_input.picker.q_color.props('default-view="palette"')
 
         def save() -> None:
             db.update_claimant_color(claimant_id, color_input.value or current_color)
@@ -452,7 +454,11 @@ def build_claim_card(claim: dict) -> None:
                     ui.label(claim["id"]).classes("text-xs font-mono text-gray-400")
                     if claim.get("claimant_name"):
                         claimant_color = claim.get("claimant_color") or "#6366f1"
-                        ui.badge(claim["claimant_name"], color=claimant_color)
+                        ui.badge(claim["claimant_name"], color=claimant_color) \
+                            .classes("cursor-pointer") \
+                            .on("click.stop", lambda c=claim: edit_claimant_color_dialog(
+                                c["claimant_id"], c.get("claimant_name", ""),
+                                c.get("claimant_color") or "#6366f1"))
                     ui.badge(db.STAGES[claim["stage"]], color=color)
                 lbl = ui.label(("⚠ " if stale else "") + age_label)
                 lbl.classes("text-xs " +
