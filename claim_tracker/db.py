@@ -203,6 +203,12 @@ def add_claimant(name: str, color: str = "#6366f1") -> int:
         return conn.execute("SELECT id FROM claimants WHERE name = ?", (name,)).fetchone()[0]
 
 
+def update_claimant(claimant_id: int, name: str, color: str) -> None:
+    name = name.strip()
+    with get_connection() as conn:
+        conn.execute("UPDATE claimants SET name = ?, color = ? WHERE id = ?", (name, color, claimant_id))
+
+
 def update_claimant_color(claimant_id: int, color: str) -> None:
     with get_connection() as conn:
         conn.execute("UPDATE claimants SET color = ? WHERE id = ?", (color, claimant_id))
@@ -245,6 +251,12 @@ def add_provider(name: str) -> int:
     with get_connection() as conn:
         conn.execute("INSERT INTO providers (name) VALUES (?)", (name,))
         return conn.execute("SELECT id FROM providers WHERE name = ?", (name,)).fetchone()[0]
+
+
+def update_provider(provider_id: int, name: str) -> None:
+    name = name.strip()
+    with get_connection() as conn:
+        conn.execute("UPDATE providers SET name = ? WHERE id = ?", (name, provider_id))
 
 
 def delete_provider(provider_id: int) -> None:

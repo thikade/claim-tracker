@@ -682,6 +682,7 @@ def main_page() -> None:
                     ui.notify(f"Backup written to {target}",
                               type="positive")
                 ui.button("Backup", on_click=do_backup).props("outline")
+                ui.button("Settings", on_click=lambda: ui.navigate.to("/settings")).props("outline")
                 ui.button("+ New claim",
                           on_click=lambda: claim_form_dialog(None)) \
                     .props("color=primary")
@@ -713,6 +714,203 @@ def main_page() -> None:
 
         # ---- board -------------------------------------------------------
         claim_board()
+
+
+# --------------------------------------------------------------------------
+# Settings page
+# --------------------------------------------------------------------------
+
+@ui.page("/settings")
+def settings_page() -> None:
+    ui.colors(primary="#2c5f4f")
+    ui.add_head_html("<style>body{background:#f4f2ec}</style>")
+
+    with ui.column().classes("w-full max-w-3xl mx-auto p-6 gap-6"):
+
+        with ui.row().classes("w-full items-center justify-between border-b-2 border-gray-800 pb-3"):
+            ui.label("Settings").classes("text-2xl font-medium")
+            ui.button("← Back", on_click=lambda: ui.navigate.to("/")).props("flat")
+
+        # ---- Claimants section -------------------------------------------
+        with ui.card().classes("w-full"):
+            with ui.row().classes("w-full items-center justify-between mb-2"):
+                ui.label("Claimants").classes("text-lg font-semibold")
+                ui.button(icon="add", on_click=lambda: _add_claimant_inline(claimants_col)) \
+                    .props("flat round dense").tooltip("Add claimant")
+
+            claimants_col = ui.column().classes("w-full gap-1")
+            _render_claimants(claimants_col)
+
+        # ---- Providers section -------------------------------------------
+        with ui.card().classes("w-full"):
+            with ui.row().classes("w-full items-center justify-between mb-2"):
+                ui.label("Providers").classes("text-lg font-semibold")
+                ui.button(icon="add", on_click=lambda: _add_provider_inline(providers_col)) \
+                    .props("flat round dense").tooltip("Add provider")
+
+            providers_col = ui.column().classes("w-full gap-1")
+            _render_providers(providers_col)
+
+
+def _render_claimants(container: ui.column) -> None:
+    container.clear()
+    with container:
+        claimants = db.list_claimants()
+        if not claimants:
+            ui.label("No claimants yet.").classes("text-sm text-gray-400")
+            return
+        for c in claimants:
+            _claimant_row(container, c)
+
+
+def _claimant_row(container: ui.column, c: dict) -> None:
+    with ui.row().classes("w-full items-center gap-2 py-1"):
+        # colored dot
+        color = c["color"] or "#6366f1"
+        ui.element("span").style(
+            f"width:14px;height:14px;border-radius:50%;background:{color};display:inline-block;flex-shrink:0"
+        )
+        ui.label(c["name"]).classes("flex-1 text-sm")
+
+        def open_edit(claimant=c):
+            _edit_claimant_inline(container, claimant)
+        def do_delete(claimant=c):
+            try:
+                db.delete_claimant(claimant["id"])
+                _render_claimants(container)
+            except ValueError as exc:
+                ui.notify(str(exc), type="warning")
+
+        ui.button(icon="edit", on_click=open_edit).props("flat round dense size=sm")
+        ui.button(icon="delete", on_click=do_delete).props("flat round dense size=sm color=negative")
+
+
+def _add_claimant_inline(container: ui.column) -> None:
+    with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
+        ui.label("New claimant").classes("text-lg font-medium")
+        name_input = ui.input("Full name").classes("w-full")
+        color_input = ui.color_input("Badge color", value="#6366f1", preview=True).classes("w-full")
+        color_input.picker.q_color.props('default-view="palette"')
+
+        def save():
+            name = (name_input.value or "").strip()
+            if not name:
+                ui.notify("Please enter a name", type="warning")
+                return
+            try:
+                db.add_claimant(name, color=color_input.value or "#6366f1")
+            except Exception:
+                ui.notify("Claimant already exists", type="warning")
+                return
+            dialog.close()
+            _render_claimants(container)
+
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Add", on_click=save).props("color=primary")
+    dialog.open()
+
+
+def _edit_claimant_inline(container: ui.column, c: dict) -> None:
+    with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
+        ui.label("Edit claimant").classes("text-lg font-medium")
+        name_input = ui.input("Full name", value=c["name"]).classes("w-full")
+        color_input = ui.color_input("Badge color", value=c["color"] or "#6366f1", preview=True).classes("w-full")
+        color_input.picker.q_color.props('default-view="palette"')
+
+        def save():
+            name = (name_input.value or "").strip()
+            if not name:
+                ui.notify("Please enter a name", type="warning")
+                return
+            try:
+                db.update_claimant(c["id"], name, color_input.value or "#6366f1")
+            except Exception:
+                ui.notify("Name already taken", type="warning")
+                return
+            dialog.close()
+            _render_claimants(container)
+
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Save", on_click=save).props("color=primary")
+    dialog.open()
+
+
+def _render_providers(container: ui.column) -> None:
+    container.clear()
+    with container:
+        providers = db.list_providers()
+        if not providers:
+            ui.label("No providers yet.").classes("text-sm text-gray-400")
+            return
+        for p in providers:
+            _provider_row(container, p)
+
+
+def _provider_row(container: ui.column, p: dict) -> None:
+    with ui.row().classes("w-full items-center gap-2 py-1"):
+        ui.label(p["name"]).classes("flex-1 text-sm")
+
+        def open_edit(provider=p):
+            _edit_provider_inline(container, provider)
+        def do_delete(provider=p):
+            try:
+                db.delete_provider(provider["id"])
+                _render_providers(container)
+            except ValueError as exc:
+                ui.notify(str(exc), type="warning")
+
+        ui.button(icon="edit", on_click=open_edit).props("flat round dense size=sm")
+        ui.button(icon="delete", on_click=do_delete).props("flat round dense size=sm color=negative")
+
+
+def _add_provider_inline(container: ui.column) -> None:
+    with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
+        ui.label("New provider").classes("text-lg font-medium")
+        name_input = ui.input("Name").classes("w-full")
+
+        def save():
+            name = (name_input.value or "").strip()
+            if not name:
+                ui.notify("Please enter a name", type="warning")
+                return
+            try:
+                db.add_provider(name)
+            except Exception:
+                ui.notify("Provider already exists", type="warning")
+                return
+            dialog.close()
+            _render_providers(container)
+
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Add", on_click=save).props("color=primary")
+    dialog.open()
+
+
+def _edit_provider_inline(container: ui.column, p: dict) -> None:
+    with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
+        ui.label("Edit provider").classes("text-lg font-medium")
+        name_input = ui.input("Name", value=p["name"]).classes("w-full")
+
+        def save():
+            name = (name_input.value or "").strip()
+            if not name:
+                ui.notify("Please enter a name", type="warning")
+                return
+            try:
+                db.update_provider(p["id"], name)
+            except Exception:
+                ui.notify("Name already taken", type="warning")
+                return
+            dialog.close()
+            _render_providers(container)
+
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Save", on_click=save).props("color=primary")
+    dialog.open()
 
 
 # --------------------------------------------------------------------------
