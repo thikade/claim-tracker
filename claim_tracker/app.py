@@ -69,7 +69,7 @@ def add_claimant_dialog(on_created) -> None:
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
         ui.label("New claimant").classes("text-lg font-medium")
         name_input = ui.input("Full name").classes("w-full")
-        color_input = ui.color_input("Badge color", value="#6366f1").classes("w-full")
+        color_input = ui.color_input("Badge color", value="#6366f1", preview=True).classes("w-full")
         color_input.picker.q_color.props('default-view="palette"')
 
         def save() -> None:
@@ -95,7 +95,7 @@ def edit_claimant_color_dialog(claimant_id: int, name: str, current_color: str) 
     """Open a dialog to change a claimant's badge color."""
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
         ui.label(f"Badge color — {name}").classes("text-lg font-medium")
-        color_input = ui.color_input("Badge color", value=current_color).classes("w-full")
+        color_input = ui.color_input("Badge color", value=current_color, preview=True).classes("w-full")
         color_input.picker.q_color.props('default-view="palette"')
 
         def save() -> None:
