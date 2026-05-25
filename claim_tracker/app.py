@@ -941,12 +941,13 @@ def _edit_provider_inline(container: ui.column, p: dict) -> None:
 
 def run() -> None:
     """Initialise the database and start the NiceGUI server."""
+    import os
     db.init_db()
     ui.run(
         title="Insurance Claim Tracker",
         port=8080,
-        reload=True,
-        show=True,        # open the browser automatically
+        reload=os.getenv("CLAIMS_DEV", "0") == "1",
+        show=os.getenv("CLAIMS_DEV", "0") == "1",
         favicon="🧾",
     )
 

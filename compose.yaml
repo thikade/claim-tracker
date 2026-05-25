@@ -1,0 +1,12 @@
+services:
+  claims-tracker:
+    image: claims-tracker
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - claims-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  claims-data:
