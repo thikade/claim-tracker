@@ -131,7 +131,7 @@ Always activate the venv with `source venv/bin/activate` before running Python c
 ## Open items / planned enhancements
 
 - [x] First live run of the NiceGUI app — runtime bugs fixed (see 2026-05-25 session 2).
-- [ ] **Duplicate claim button:** on each claim card, quickly create a new claim
+- [x] **Duplicate claim button:** on each claim card, quickly create a new claim
       with all fields pre-filled (title, provider, claimant, amount, notes, refs)
       but visit date reset to yesterday and stage reset to `scanned`.
 - [x] Consider a `.gitignore` (exclude `data/`, `__pycache__/`, `*.pyc`,
@@ -142,6 +142,17 @@ Always activate the venv with `source venv/bin/activate` before running Python c
 - [ ] Possible enhancement: per-attachment size guard / large-file handling.
 - [ ] No automated test suite yet — `db.py` would be straightforward to cover
       with pytest if desired.
+
+### 2026-05-26 — Duplicate claim button (session 4)
+- Added "Duplicate" button to the claim detail panel footer (alongside "Edit details").
+- Reuses `claim_form_dialog` with a `dupe_mode=True` flag: pre-fills title, provider,
+  claimant, amount, notes, public_ref, private_ref from the source claim; resets
+  visit_date and bill_date to yesterday; stage starts at `scanned`.
+- History and attachments are not copied.
+- After save the new claim is opened/focused.
+- Added DE translations for "Duplicate claim", "Duplicate", "Claim duplicated".
+- `days_in_stage` now compares calendar dates (not raw timedelta) so a claim
+  created yesterday always shows ≥ 1d even if < 24h have elapsed.
 
 ## Conventions for updating this file
 

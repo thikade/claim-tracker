@@ -154,6 +154,9 @@ _DE: dict[str, str] = {
     "Notes": "Notizen",
     "Edit claim": "Antrag bearbeiten",
     "New claim": "Neuer Antrag",
+    "Duplicate claim": "Antrag duplizieren",
+    "Duplicate": "Duplizieren",
+    "Claim duplicated": "Antrag dupliziert",
 
     # Claim board empty states
     "No claims yet.": "Noch keine Anträge.",

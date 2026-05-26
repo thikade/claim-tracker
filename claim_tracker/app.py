@@ -204,23 +204,25 @@ def edit_claimant_color_dialog(claimant_id: int, name: str, current_color: str) 
     dialog.open()
 
 
-def claim_form_dialog(existing: dict | None = None) -> None:
-    """Open a dialog to create a new claim or edit an existing one."""
-    editing = existing is not None
+def claim_form_dialog(existing: dict | None = None, dupe_mode: bool = False) -> None:
+    """Open a dialog to create a new claim, edit an existing one, or duplicate one."""
+    editing = existing is not None and not dupe_mode
+    prefill = existing is not None
     with ui.dialog() as dialog, ui.card().classes("w-96 gap-2"):
-        ui.label(t("Edit claim") if editing else t("New claim")) \
+        title_key = "Duplicate claim" if dupe_mode else ("Edit claim" if editing else "New claim")
+        ui.label(t(title_key)) \
             .classes("text-xl font-medium")
 
         title = ui.input(
             t("Title"),
             placeholder=t("e.g. Dr. Müller - physiotherapy"),
-            value=existing["title"] if editing else "",
+            value=existing["title"] if prefill else "",
             autocomplete=db.list_titles(),
         ).classes("w-full")
 
         providers = db.list_providers()
         provider_options = {p["id"]: p["name"] for p in providers}
-        current_provider = existing.get("provider_id") if editing else None
+        current_provider = existing.get("provider_id") if prefill else None
 
         with ui.row().classes("w-full items-end gap-2"):
             provider_sel = ui.select(
@@ -244,7 +246,7 @@ def claim_form_dialog(existing: dict | None = None) -> None:
                 .props("flat round dense").classes("mb-1")
 
         claimants = db.list_claimants()
-        selected_claimant_id: list[int | None] = [existing.get("claimant_id") if editing else None]
+        selected_claimant_id: list[int | None] = [existing.get("claimant_id") if prefill else None]
 
         ui.label(t("Claimant *")).classes("text-xs text-gray-500 -mb-1")
         badge_row = ui.row().classes("w-full flex-wrap gap-2 items-center")
@@ -278,7 +280,7 @@ def claim_form_dialog(existing: dict | None = None) -> None:
 
         amount = ui.number(
             t("Amount (€)"), format="%.2f",
-            value=existing["amount"] if editing else None,
+            value=existing["amount"] if prefill else None,
         ).classes("w-full")
 
         default_date = (datetime.utcnow().date() - timedelta(days=1)).isoformat()
@@ -301,16 +303,16 @@ def claim_form_dialog(existing: dict | None = None) -> None:
         # Portal reference numbers - handy once a claim is submitted.
         public_ref = ui.input(
             t("Public insurer reference"),
-            value=existing.get("public_ref") or "" if editing else "",
+            value=existing.get("public_ref") or "" if prefill else "",
         ).classes("w-full")
         private_ref = ui.input(
             t("Private insurer reference"),
-            value=existing.get("private_ref") or "" if editing else "",
+            value=existing.get("private_ref") or "" if prefill else "",
         ).classes("w-full")
 
         notes = ui.textarea(
             t("Notes"),
-            value=existing["notes"] if editing else "",
+            value=existing["notes"] if prefill else "",
         ).classes("w-full")
 
         def save() -> None:
@@ -338,7 +340,7 @@ def claim_form_dialog(existing: dict | None = None) -> None:
             else:
                 new_id = db.create_claim(**fields)
                 state["open_id"] = new_id
-                ui.notify(t("Claim created"), type="positive")
+                ui.notify(t("Claim duplicated") if dupe_mode else t("Claim created"), type="positive")
             dialog.close()
             refresh_page()
 
@@ -600,6 +602,9 @@ def build_claim_detail(claim: dict) -> None:
             with ui.row().classes("gap-1"):
                 ui.button(t("Edit details"),
                           on_click=lambda: claim_form_dialog(claim)) \
+                    .props("flat size=sm")
+                ui.button(t("Duplicate"),
+                          on_click=lambda: claim_form_dialog(claim, dupe_mode=True)) \
                     .props("flat size=sm")
             ui.button(t("Delete claim"),
                       on_click=lambda: confirm_delete_dialog(claim)) \
