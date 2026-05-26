@@ -70,7 +70,9 @@ _DE: dict[str, str] = {
     "Moved to {stage}": "Verschoben zu {stage}",
     "Selected: {name}": "Ausgewählt: {name}",
 
-    # Document type keys (raw kind values used in badge)
+    # Document type keys (raw kind values used in attachment badge).
+    # These are intentionally separate from the display labels below —
+    # t(att["kind"]) and t("Medical bill") are different call sites.
     "bill": "Arztrechnung",
     "prescription": "Verschreibung",
     "bank_statement": "Kontoauszug",
@@ -88,6 +90,8 @@ _DE: dict[str, str] = {
     "Click to change document type": "Klicken zum Ändern des Dokumenttyps",
     "Shift-click to delete": "Shift+Klick zum Löschen",
     "Add document": "Dokument hinzufügen",
+    "Add documents": "Dokumente hinzufügen",
+    "Done": "Fertig",
     "Document type": "Dokumenttyp",
     "Choose file": "Datei auswählen",
     "Document attached": "Dokument hinzugefügt",
