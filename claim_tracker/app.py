@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 GIT_COMMIT = os.environ.get("GIT_COMMIT", "dev")[:7]
+BUILD_DATE = os.environ.get("BUILD_DATE", "")
 
 from nicegui import ui, app
 
@@ -859,7 +860,10 @@ def main_page() -> None:
         claim_board()
 
         # ---- footer ------------------------------------------------------
-        ui.label(f"build {GIT_COMMIT}") \
+        _build_label = f"build {GIT_COMMIT}"
+        if BUILD_DATE:
+            _build_label += f" · {BUILD_DATE}"
+        ui.label(_build_label) \
             .classes("text-xs text-gray-400 w-full text-right pt-4")
 
 
