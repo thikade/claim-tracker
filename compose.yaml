@@ -1,12 +1,12 @@
 services:
   claims-tracker:
-    image: claims-tracker
+    image: ghcr.io/thikade/claim-tracker:latest
     build: .
     ports:
       - "8081:8080"
     volumes:
       # - claims-data:/app/data
-      - ./data-docker:/app/data
+      - ./data:/app/data
     restart: unless-stopped
 
 # volumes:
