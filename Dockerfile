@@ -8,6 +8,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY claim_tracker/ ./claim_tracker/
 COPY main.py .
 
+ARG GIT_COMMIT=dev
+ENV GIT_COMMIT=$GIT_COMMIT
+
 VOLUME ["/app/data"]
 
 EXPOSE 8080

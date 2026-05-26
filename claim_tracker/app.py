@@ -9,8 +9,11 @@ separate backend service.
 from __future__ import annotations
 
 import base64
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
+
+GIT_COMMIT = os.environ.get("GIT_COMMIT", "dev")[:7]
 
 from nicegui import ui, app
 
@@ -847,6 +850,10 @@ def main_page() -> None:
 
         # ---- board -------------------------------------------------------
         claim_board()
+
+        # ---- footer ------------------------------------------------------
+        ui.label(f"build {GIT_COMMIT}") \
+            .classes("text-xs text-gray-400 w-full text-right pt-4")
 
 
 # --------------------------------------------------------------------------
