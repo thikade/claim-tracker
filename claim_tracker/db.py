@@ -636,12 +636,12 @@ def is_stale(claim: dict) -> bool:
 
 
 def days_in_stage(claim: dict) -> int:
-    """Return how many whole days the claim has been in its current stage."""
+    """Return how many calendar days the claim has been in its current stage."""
     try:
         staged = datetime.fromisoformat(claim["staged_at"])
     except (ValueError, TypeError):
         return 0
-    return (datetime.now(timezone.utc) - staged).days
+    return (datetime.now(timezone.utc).date() - staged.date()).days
 
 
 # --------------------------------------------------------------------------
