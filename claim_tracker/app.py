@@ -18,7 +18,13 @@ GIT_COMMIT = os.environ.get("GIT_COMMIT", "dev")[:7]
 from nicegui import ui, app
 
 from . import db
-from .i18n import t as _t
+from .i18n import (
+    STAGE_KEYS,
+    TRANSITION_HINT_KEYS,
+    TRANSITION_LABEL_KEYS,
+    check_translations,
+    t as _t,
+)
 
 
 # --------------------------------------------------------------------------
@@ -78,27 +84,27 @@ def t(key: str, **kwargs) -> str:
 def add_claimant_dialog(on_created) -> None:
     """Open a dialog to add a new claimant with a badge color."""
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
-        ui.label(t("New claimant")).classes("text-lg font-medium")
-        name_input = ui.input(t("Full name")).classes("w-full")
-        color_input = ui.color_input(t("Badge color"), value="#6366f1", preview=True).classes("w-full")
+        ui.label(t("claimant.new")).classes("text-lg font-medium")
+        name_input = ui.input(t("claimant.full_name")).classes("w-full")
+        color_input = ui.color_input(t("claimant.badge_color"), value="#6366f1", preview=True).classes("w-full")
         color_input.picker.q_color.props('default-view="palette"')
 
         def save() -> None:
             name = (name_input.value or "").strip()
             if not name:
-                ui.notify(t("Please enter a name"), type="warning")
+                ui.notify(t("common.name_required"), type="warning")
                 return
             try:
                 new_id = db.add_claimant(name, color=color_input.value or "#6366f1")
             except Exception:
-                ui.notify(t("Claimant already exists"), type="warning")
+                ui.notify(t("claimant.already_exists"), type="warning")
                 return
             dialog.close()
             on_created(new_id, name, color_input.value or "#6366f1")
 
         with ui.row().classes("w-full justify-end gap-2"):
-            ui.button(t("Cancel"), on_click=dialog.close).props("flat")
-            ui.button(t("Add"), on_click=save).props("color=primary")
+            ui.button(t("common.cancel"), on_click=dialog.close).props("flat")
+            ui.button(t("common.add"), on_click=save).props("color=primary")
     dialog.open()
 
 
@@ -106,16 +112,16 @@ def delete_claimant_dialog(on_deleted=None) -> None:
     """Open a dialog listing unassigned claimants with a delete button each."""
     unassigned = db.list_unassigned_claimants()
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
-        ui.label(t("Delete claimant")).classes("text-lg font-medium")
+        ui.label(t("claimant.delete")).classes("text-lg font-medium")
         if not unassigned:
-            ui.label(t("No unassigned claimants.")).classes("text-gray-500 text-sm")
+            ui.label(t("claimant.no_unassigned")).classes("text-gray-500 text-sm")
         else:
             for c in unassigned:
                 def make_delete(cid: int, cname: str):
                     def do_delete():
                         try:
                             db.delete_claimant(cid)
-                            ui.notify(t("{name} deleted", name=cname), type="positive")
+                            ui.notify(t("common.deleted_named", name=cname), type="positive")
                             dialog.close()
                             if on_deleted:
                                 on_deleted(cid)
@@ -129,32 +135,32 @@ def delete_claimant_dialog(on_deleted=None) -> None:
                         .props("flat round dense color=negative")
 
         with ui.row().classes("w-full justify-end"):
-            ui.button(t("Close"), on_click=dialog.close).props("flat")
+            ui.button(t("common.close"), on_click=dialog.close).props("flat")
     dialog.open()
 
 
 def add_provider_dialog(on_created) -> None:
     """Open a dialog to add a new provider."""
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
-        ui.label(t("New provider")).classes("text-lg font-medium")
-        name_input = ui.input(t("Name")).classes("w-full")
+        ui.label(t("provider.new")).classes("text-lg font-medium")
+        name_input = ui.input(t("common.name")).classes("w-full")
 
         def save() -> None:
             name = (name_input.value or "").strip()
             if not name:
-                ui.notify(t("Please enter a name"), type="warning")
+                ui.notify(t("common.name_required"), type="warning")
                 return
             try:
                 new_id = db.add_provider(name)
             except Exception:
-                ui.notify(t("Provider already exists"), type="warning")
+                ui.notify(t("provider.already_exists"), type="warning")
                 return
             dialog.close()
             on_created(new_id, name)
 
         with ui.row().classes("w-full justify-end gap-2"):
-            ui.button(t("Cancel"), on_click=dialog.close).props("flat")
-            ui.button(t("Add"), on_click=save).props("color=primary")
+            ui.button(t("common.cancel"), on_click=dialog.close).props("flat")
+            ui.button(t("common.add"), on_click=save).props("color=primary")
     dialog.open()
 
 
@@ -162,16 +168,16 @@ def delete_provider_dialog(on_deleted=None) -> None:
     """Open a dialog listing unassigned providers with a delete button each."""
     unassigned = db.list_unassigned_providers()
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
-        ui.label(t("Delete provider")).classes("text-lg font-medium")
+        ui.label(t("provider.delete")).classes("text-lg font-medium")
         if not unassigned:
-            ui.label(t("No unassigned providers.")).classes("text-gray-500 text-sm")
+            ui.label(t("provider.no_unassigned")).classes("text-gray-500 text-sm")
         else:
             for p in unassigned:
                 def make_delete(pid: int, pname: str):
                     def do_delete():
                         try:
                             db.delete_provider(pid)
-                            ui.notify(t("{name} deleted", name=pname), type="positive")
+                            ui.notify(t("common.deleted_named", name=pname), type="positive")
                             dialog.close()
                             if on_deleted:
                                 on_deleted(pid)
@@ -185,15 +191,15 @@ def delete_provider_dialog(on_deleted=None) -> None:
                         .props("flat round dense color=negative")
 
         with ui.row().classes("w-full justify-end"):
-            ui.button(t("Close"), on_click=dialog.close).props("flat")
+            ui.button(t("common.close"), on_click=dialog.close).props("flat")
     dialog.open()
 
 
 def edit_claimant_color_dialog(claimant_id: int, name: str, current_color: str) -> None:
     """Open a dialog to change a claimant's badge color."""
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
-        ui.label(t("Badge color — {name}", name=name)).classes("text-lg font-medium")
-        color_input = ui.color_input(t("Badge color"), value=current_color, preview=True).classes("w-full")
+        ui.label(t("claimant.badge_color_named", name=name)).classes("text-lg font-medium")
+        color_input = ui.color_input(t("claimant.badge_color"), value=current_color, preview=True).classes("w-full")
         color_input.picker.q_color.props('default-view="palette"')
 
         def save() -> None:
@@ -202,8 +208,8 @@ def edit_claimant_color_dialog(claimant_id: int, name: str, current_color: str) 
             refresh_page()
 
         with ui.row().classes("w-full justify-end gap-2"):
-            ui.button(t("Cancel"), on_click=dialog.close).props("flat")
-            ui.button(t("Save"), on_click=save).props("color=primary")
+            ui.button(t("common.cancel"), on_click=dialog.close).props("flat")
+            ui.button(t("common.save"), on_click=save).props("color=primary")
     dialog.open()
 
 
@@ -212,13 +218,13 @@ def claim_form_dialog(existing: dict | None = None, dupe_mode: bool = False) -> 
     editing = existing is not None and not dupe_mode
     prefill = existing is not None
     with ui.dialog() as dialog, ui.card().classes("w-96 gap-2"):
-        title_key = "Duplicate claim" if dupe_mode else ("Edit claim" if editing else "New claim")
+        title_key = "claim_form.duplicate_title" if dupe_mode else ("claim_form.edit_title" if editing else "claim_form.new_title")
         ui.label(t(title_key)) \
             .classes("text-xl font-medium")
 
         title = ui.input(
-            t("Title"),
-            placeholder=t("e.g. Dr. Müller - physiotherapy"),
+            t("claim_form.title"),
+            placeholder=t("claim_form.title_placeholder"),
             value=existing["title"] if prefill else "",
             autocomplete=db.list_titles(),
         ).classes("w-full")
@@ -230,7 +236,7 @@ def claim_form_dialog(existing: dict | None = None, dupe_mode: bool = False) -> 
         with ui.row().classes("w-full items-end gap-2"):
             provider_sel = ui.select(
                 provider_options,
-                label=t("Provider / doctor"),
+                label=t("claim_form.provider"),
                 value=current_provider,
             ).classes("flex-1")
 
@@ -251,7 +257,7 @@ def claim_form_dialog(existing: dict | None = None, dupe_mode: bool = False) -> 
         claimants = db.list_claimants()
         selected_claimant_id: list[int | None] = [existing.get("claimant_id") if prefill else None]
 
-        ui.label(t("Claimant *")).classes("text-xs text-gray-500 -mb-1")
+        ui.label(t("claim_form.claimant_label")).classes("text-xs text-gray-500 -mb-1")
         badge_row = ui.row().classes("w-full flex-wrap gap-2 items-center")
 
         def render_claimant_badges() -> None:
@@ -282,18 +288,18 @@ def claim_form_dialog(existing: dict | None = None, dupe_mode: bool = False) -> 
         render_claimant_badges()
 
         amount = ui.number(
-            t("Amount (€)"), format="%.2f",
+            t("claim_form.amount"), format="%.2f",
             value=existing["amount"] if prefill else None,
         ).classes("w-full")
 
         default_date = (datetime.utcnow().date() - timedelta(days=1)).isoformat()
         visit = ui.input(
-            t("Visit date"),
+            t("claim_form.visit_date"),
             value=existing["visit_date"] if editing else default_date,
         ).props("type=date").classes("w-full")
 
         bill = ui.input(
-            t("Bill date"),
+            t("claim_form.bill_date"),
             value=(existing.get("bill_date") or existing["visit_date"]) if editing else default_date,
         ).props("type=date").classes("w-full")
 
@@ -305,25 +311,25 @@ def claim_form_dialog(existing: dict | None = None, dupe_mode: bool = False) -> 
 
         # Portal reference numbers - handy once a claim is submitted.
         public_ref = ui.input(
-            t("Public insurer reference"),
+            t("claim_form.public_ref"),
             value=existing.get("public_ref") or "" if prefill else "",
         ).classes("w-full")
         private_ref = ui.input(
-            t("Private insurer reference"),
+            t("claim_form.private_ref"),
             value=existing.get("private_ref") or "" if prefill else "",
         ).classes("w-full")
 
         notes = ui.textarea(
-            t("Notes"),
+            t("claim_form.notes"),
             value=existing["notes"] if prefill else "",
         ).classes("w-full")
 
         def save() -> None:
             if not title.value or not title.value.strip():
-                ui.notify(t("Please enter a title"), type="warning")
+                ui.notify(t("claim_form.title_required"), type="warning")
                 return
             if not selected_claimant_id[0]:
-                ui.notify(t("Please select a claimant"), type="warning")
+                ui.notify(t("claim_form.claimant_required"), type="warning")
                 return
             fields = dict(
                 title=title.value.strip(),
@@ -339,17 +345,17 @@ def claim_form_dialog(existing: dict | None = None, dupe_mode: bool = False) -> 
             )
             if editing:
                 db.update_claim(existing["id"], **fields)
-                ui.notify(t("Claim updated"), type="positive")
+                ui.notify(t("claim_form.updated"), type="positive")
             else:
                 new_id = db.create_claim(**fields)
                 state["open_id"] = new_id
-                ui.notify(t("Claim duplicated") if dupe_mode else t("Claim saved"), type="positive")
+                ui.notify(t("claim_form.duplicated") if dupe_mode else t("claim_form.saved"), type="positive")
             dialog.close()
             refresh_page()
 
         with ui.row().classes("w-full justify-end gap-2"):
-            ui.button(t("Cancel"), on_click=dialog.close).props("flat")
-            ui.button(t("Save") if editing else t("Create"), on_click=save) \
+            ui.button(t("common.cancel"), on_click=dialog.close).props("flat")
+            ui.button(t("common.save") if editing else t("common.create"), on_click=save) \
                 .props("color=primary")
     dialog.open()
 
@@ -359,25 +365,27 @@ def move_dialog(claim: dict, transition: dict) -> None:
     # A simple move with no document - just do it.
     if not transition["needs_doc"]:
         db.move_claim(claim["id"], transition["to"])
-        ui.notify(t("Moved to {stage}", stage=t(db.STAGES[transition["to"]])), type="positive")
+        ui.notify(t("move.moved", stage=t(STAGE_KEYS[transition["to"]])), type="positive")
         refresh_page()
         return
 
     uploaded: dict = {"name": None, "content": None}
 
     with ui.dialog() as dialog, ui.card().classes("w-96 gap-2"):
-        ui.label(t(transition["label"])).classes("text-lg font-medium")
-        ui.label(t(transition["doc_hint"]) + ". " +
-                 t("You can also continue without it and add the document later.")) \
+        label_key = TRANSITION_LABEL_KEYS[(claim["stage"], transition["to"])]
+        ui.label(t(label_key)).classes("text-lg font-medium")
+        hint_key = TRANSITION_HINT_KEYS[(claim["stage"], transition["to"])]
+        ui.label(t(hint_key) + ". " +
+                 t("move.also_continue")) \
             .classes("text-sm text-gray-600")
 
         def on_upload(e) -> None:
             uploaded["name"] = e.name
             uploaded["content"] = e.content.read()
-            ui.notify(t("Selected: {name}", name=e.name))
+            ui.notify(t("move.selected", name=e.name))
 
         ui.upload(on_upload=on_upload, auto_upload=True,
-                  label=t("Choose confirmation file")).classes("w-full")
+                  label=t("move.choose_file")).classes("w-full")
 
         def confirm(with_doc: bool) -> None:
             db.move_claim(claim["id"], transition["to"])
@@ -387,15 +395,15 @@ def move_dialog(claim: dict, transition: dict) -> None:
                     uploaded["content"], kind="confirmation",
                 )
             dialog.close()
-            ui.notify(t("Moved to {stage}", stage=t(db.STAGES[transition["to"]])),
+            ui.notify(t("move.moved", stage=t(STAGE_KEYS[transition["to"]])),
                       type="positive")
             refresh_page()
 
         with ui.row().classes("w-full justify-end gap-2"):
-            ui.button(t("Cancel"), on_click=dialog.close).props("flat")
-            ui.button(t("Continue without"),
+            ui.button(t("common.cancel"), on_click=dialog.close).props("flat")
+            ui.button(t("move.continue_without"),
                       on_click=lambda: confirm(False)).props("flat")
-            ui.button(t("Confirm step"),
+            ui.button(t("move.confirm"),
                       on_click=lambda: confirm(True)).props("color=primary")
     dialog.open()
 
@@ -403,17 +411,17 @@ def move_dialog(claim: dict, transition: dict) -> None:
 def upload_dialog(claim_id: str) -> None:
     """Open a dialog to attach one or more documents to a claim."""
     doc_types = {
-        "bill":           t("Medical bill"),
-        "prescription":   t("Prescription"),
-        "bank_statement": t("Bank statement"),
-        "other":          t("Other"),
+        "bill":           t("doc_label.bill"),
+        "prescription":   t("doc_label.prescription"),
+        "bank_statement": t("doc_label.bank_statement"),
+        "other":          t("doc_label.other"),
     }
     uploaded_files: list[str] = []
     needs_refresh = [False]
 
     with ui.dialog() as dialog, ui.card().classes("w-96 gap-2"):
-        ui.label(t("Add documents")).classes("text-lg font-medium")
-        kind_sel = ui.select(doc_types, value="bill", label=t("Document type")).classes("w-full")
+        ui.label(t("upload.title")).classes("text-lg font-medium")
+        kind_sel = ui.select(doc_types, value="bill", label=t("upload.kind_label")).classes("w-full")
 
         uploaded_list = ui.column().classes("w-full gap-1")
 
@@ -424,7 +432,7 @@ def upload_dialog(claim_id: str) -> None:
             needs_refresh[0] = True
             with uploaded_list:
                 ui.label(f"✓ {e.file.name} ({doc_types[kind_sel.value]})").classes("text-sm text-green-700")
-            ui.notify(t("Document attached"), type="positive")
+            ui.notify(t("upload.attached"), type="positive")
 
         ui.upload(on_upload=on_upload, auto_upload=True, multiple=True) \
             .classes("w-full")
@@ -434,7 +442,7 @@ def upload_dialog(claim_id: str) -> None:
             if needs_refresh[0]:
                 refresh_page()
 
-        ui.button(t("Done"), on_click=on_close).props("flat")
+        ui.button(t("upload.done"), on_click=on_close).props("flat")
     dialog.open()
 
 
@@ -442,9 +450,8 @@ def confirm_delete_dialog(claim: dict) -> None:
     """Ask for confirmation before permanently deleting a claim."""
     atts = db.list_attachments(claim["id"])
     with ui.dialog() as dialog, ui.card().classes("w-96 gap-2"):
-        ui.label(t("Delete claim?")).classes("text-lg font-medium")
-        ui.label(t('"{title}" and its {n} document(s) will be permanently removed from the database and disk.',
-                   title=claim["title"], n=len(atts))) \
+        ui.label(t("delete.title")).classes("text-lg font-medium")
+        ui.label(t("delete.body", title=claim["title"], n=len(atts))) \
             .classes("text-sm text-gray-600")
 
         def do_delete() -> None:
@@ -452,12 +459,12 @@ def confirm_delete_dialog(claim: dict) -> None:
             if state["open_id"] == claim["id"]:
                 state["open_id"] = None
             dialog.close()
-            ui.notify(t("Claim deleted"), type="warning")
+            ui.notify(t("delete.notified"), type="warning")
             refresh_page()
 
         with ui.row().classes("w-full justify-end gap-2"):
-            ui.button(t("Cancel"), on_click=dialog.close).props("flat")
-            ui.button(t("Delete permanently"), on_click=do_delete) \
+            ui.button(t("common.cancel"), on_click=dialog.close).props("flat")
+            ui.button(t("delete.confirm"), on_click=do_delete) \
                 .props("color=negative")
     dialog.open()
 
@@ -488,26 +495,26 @@ def serve_attachment(att_id: str):
 def open_retype_dialog(att_id: str, current_kind: str) -> None:
     """Dialog to change the document type of an existing attachment."""
     doc_types = {
-        "bill":           t("Medical bill"),
-        "prescription":   t("Prescription"),
-        "bank_statement": t("Bank statement"),
-        "confirmation":   t("Confirmation"),
-        "other":          t("Other"),
+        "bill":           t("doc_label.bill"),
+        "prescription":   t("doc_label.prescription"),
+        "bank_statement": t("doc_label.bank_statement"),
+        "confirmation":   t("doc_label.confirmation"),
+        "other":          t("doc_label.other"),
     }
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-4"):
-        ui.label(t("Change document type")).classes("text-lg font-medium")
+        ui.label(t("attachment.change_kind")).classes("text-lg font-medium")
         kind_sel = ui.select(doc_types, value=current_kind,
-                             label=t("Document type")).classes("w-full")
+                             label=t("upload.kind_label")).classes("w-full")
         with ui.row().classes("w-full justify-end gap-2"):
-            ui.button(t("Cancel"), on_click=dialog.close).props("flat")
+            ui.button(t("common.cancel"), on_click=dialog.close).props("flat")
 
             def save() -> None:
                 db.update_attachment_kind(att_id, kind_sel.value)
                 dialog.close()
-                ui.notify(t("Document type updated"), type="positive")
+                ui.notify(t("attachment.kind_updated"), type="positive")
                 refresh_page()
 
-            ui.button(t("Save"), on_click=save).props("color=primary")
+            ui.button(t("common.save"), on_click=save).props("color=primary")
     dialog.open()
 
 
@@ -521,9 +528,9 @@ def build_attachment_row(att: dict) -> None:
             .classes("flex-1 truncate")
         ui.label(fmt_size(att["size"])).classes("text-xs text-gray-400")
 
-        badge = ui.badge(t(att["kind"])).props("color=grey-4 text-color=grey-9") \
+        badge = ui.badge(t(f"doc_kind.{att['kind']}")).props("color=grey-4 text-color=grey-9") \
             .style("cursor:pointer") \
-            .tooltip(t("Click to change document type"))
+            .tooltip(t("attachment.click_to_change_kind"))
 
         def on_badge_click(att_id=att["id"], kind=att["kind"]) -> None:
             open_retype_dialog(att_id, kind)
@@ -532,7 +539,7 @@ def build_attachment_row(att: dict) -> None:
 
         def remove(att_id=att["id"]) -> None:
             db.delete_attachment(att_id)
-            ui.notify(t("Document removed"))
+            ui.notify(t("attachment.removed"))
             refresh_page()
 
         ui.button(icon="close", on_click=remove) \
@@ -547,17 +554,18 @@ def build_claim_detail(claim: dict) -> None:
         transitions = db.TRANSITIONS.get(claim["stage"], [])
         if transitions:
             with ui.card().classes("w-full bg-green-50 gap-1"):
-                ui.label(t("NEXT STEP")).classes(
+                ui.label(t("detail.next_step")).classes(
                     "text-xs font-bold text-green-800")
                 with ui.row().classes("gap-2 flex-wrap"):
                     for tr in transitions:
+                        label_key = TRANSITION_LABEL_KEYS[(claim["stage"], tr["to"])]
                         ui.button(
-                            t(tr["label"]),
+                            t(label_key),
                             on_click=lambda tr=tr: move_dialog(claim, tr),
                         ).props("color=primary size=sm")
         else:
             with ui.card().classes("w-full bg-gray-100"):
-                ui.label(t("This claim is archived. Nothing further to do.")) \
+                ui.label(t("detail.archived_msg")) \
                     .classes("text-sm text-gray-600")
 
         # ---- two columns: attachments + history --------------------------
@@ -565,24 +573,24 @@ def build_claim_detail(claim: dict) -> None:
 
             # attachments column
             with ui.column().classes("flex-1 gap-2 min-w-0"):
-                ui.label(t("ATTACHMENTS")).classes(
+                ui.label(t("detail.attachments")).classes(
                     "text-xs font-bold text-gray-400")
                 attachments = db.list_attachments(claim["id"])
                 if attachments:
                     for a in attachments:
                         build_attachment_row(a)
                 else:
-                    ui.label(t("No documents yet.")) \
+                    ui.label(t("detail.no_documents")) \
                         .classes("text-sm text-gray-400")
                 with ui.row().classes("gap-2"):
                     ui.button(
-                        t("+ Add document"),
+                        t("detail.add_document_btn"),
                         on_click=lambda c=claim: upload_dialog(c["id"]),
                     ).props("outline size=sm")
 
             # history column
             with ui.column().classes("flex-1 gap-1 min-w-0"):
-                ui.label(t("HISTORY")).classes(
+                ui.label(t("detail.history")).classes(
                     "text-xs font-bold text-gray-400")
                 for h in db.list_history(claim["id"]):
                     with ui.row().classes("items-start gap-1 mb-1"):
@@ -594,7 +602,7 @@ def build_claim_detail(claim: dict) -> None:
                         ui.button(icon="close") \
                             .on('click', remove_entry) \
                             .props("flat round dense size=xs").classes("text-gray-300 mt-0.5") \
-                            .tooltip(t("Shift-click to delete"))
+                            .tooltip(t("detail.shift_click_to_delete"))
                         with ui.column().classes("gap-0"):
                             ui.label(h["text"]).classes("text-sm")
                             ui.label(fmt_datetime(h["ts"])) \
@@ -603,13 +611,13 @@ def build_claim_detail(claim: dict) -> None:
         # ---- footer: edit + delete ---------------------------------------
         with ui.row().classes("w-full justify-between border-t pt-2"):
             with ui.row().classes("gap-1"):
-                ui.button(t("Edit details"),
+                ui.button(t("detail.edit_details"),
                           on_click=lambda: claim_form_dialog(claim)) \
                     .props("flat size=sm")
-                ui.button(t("Duplicate"),
+                ui.button(t("detail.duplicate"),
                           on_click=lambda: claim_form_dialog(claim, dupe_mode=True)) \
                     .props("flat size=sm")
-            ui.button(t("Delete claim"),
+            ui.button(t("detail.delete_claim"),
                       on_click=lambda: confirm_delete_dialog(claim)) \
                 .props("flat color=negative size=sm")
 
@@ -620,7 +628,7 @@ def build_claim_card(claim: dict) -> None:
     color = db.STAGE_COLORS[claim["stage"]]
     stale = db.is_stale(claim)
     age = db.days_in_stage(claim)
-    age_label = t("today") if age == 0 else t("{n}d in stage", n=age)
+    age_label = t("card.today") if age == 0 else t("card.days_in_stage", n=age)
 
     with ui.card().classes("w-full p-0 overflow-hidden"):
         # ---- summary row (click to toggle) -------------------------------
@@ -646,14 +654,14 @@ def build_claim_card(claim: dict) -> None:
                 if claim["amount"]:
                     meta.append(f"{claim['currency']}"
                                 f"{claim['amount']:.2f}")
-                meta.append(t("opened {date}", date=fmt_date(claim["created_at"])))
+                meta.append(t("card.opened", date=fmt_date(claim["created_at"])))
                 ui.label("  ·  ".join(meta)) \
                     .classes("text-xs text-gray-500 truncate")
                 dates = []
                 if claim.get("visit_date"):
-                    dates.append(t("visited {date}", date=fmt_date(claim["visit_date"])))
+                    dates.append(t("card.visited", date=fmt_date(claim["visit_date"])))
                 if claim.get("bill_date"):
-                    dates.append(t("billed {date}", date=fmt_date(claim["bill_date"])))
+                    dates.append(t("card.billed", date=fmt_date(claim["bill_date"])))
                 if dates:
                     ui.label("  /  ".join(dates)) \
                         .classes("text-xs text-gray-400 truncate")
@@ -668,7 +676,7 @@ def build_claim_card(claim: dict) -> None:
                             .on("click.stop", lambda c=claim: edit_claimant_color_dialog(
                                 c["claimant_id"], c.get("claimant_name", ""),
                                 c.get("claimant_color") or "#6366f1"))
-                    ui.badge(t(db.STAGES[claim["stage"]]), color=color)
+                    ui.badge(t(STAGE_KEYS[claim["stage"]]), color=color)
                 lbl = ui.label(("⚠ " if stale else "") + age_label)
                 lbl.classes("text-xs " +
                             ("text-amber-700 font-medium"
@@ -689,14 +697,14 @@ def metrics_row() -> None:
     s = db.dashboard_stats()
     per_claimant = db.outstanding_by_claimant()
     cards = [
-        (t("ACTIVE CLAIMS"), str(s["active"]), t("{n} total", n=s["total"]), False),
-        (t("NEED ATTENTION"), str(s["stale"]), t("pending too long"), s["stale"] > 0),
-        (t("ARCHIVED"), str(s["archived"]), t("completed"), False),
+        (t("metric.active"), str(s["active"]), t("metric.total_count", n=s["total"]), False),
+        (t("metric.attention"), str(s["stale"]), t("metric.pending_too_long"), s["stale"] > 0),
+        (t("metric.archived"), str(s["archived"]), t("metric.completed"), False),
     ]
     with ui.row().classes("w-full gap-3 no-wrap items-stretch"):
         # Outstanding card — per-claimant rows only
         with ui.card().classes("flex-1 gap-0"):
-            ui.label(t("OUTSTANDING")).classes("text-xs font-bold text-gray-400")
+            ui.label(t("metric.outstanding")).classes("text-xs font-bold text-gray-400")
             if per_claimant:
                 with ui.column().classes("gap-0 mt-1"):
                     for row in per_claimant:
@@ -723,13 +731,13 @@ def claim_board() -> None:
 
     if not db.list_claims():
         with ui.column().classes("w-full items-center py-16"):
-            ui.label(t("No claims yet.")).classes("text-lg text-gray-400")
-            ui.label(t('Click "New claim" to scan your first medical bill.')) \
+            ui.label(t("board.no_claims")).classes("text-lg text-gray-400")
+            ui.label(t("board.no_claims_hint")) \
                 .classes("text-sm text-gray-400")
         return
 
     if not claims:
-        ui.label(t("No claims match your search.")) \
+        ui.label(t("board.no_matches")) \
             .classes("text-gray-400 py-16 text-center w-full")
         return
 
@@ -739,7 +747,7 @@ def claim_board() -> None:
             continue
         with ui.column().classes("w-full gap-2 mb-4"):
             with ui.row().classes("items-baseline gap-2 w-full"):
-                ui.label(t(db.STAGES[stage_id])) \
+                ui.label(t(STAGE_KEYS[stage_id])) \
                     .classes("text-lg font-medium")
                 ui.label(str(len(group))) \
                     .classes("text-xs text-gray-400 font-bold")
@@ -759,14 +767,14 @@ def toolbar() -> None:
     counts = db.claim_counts_by_stage()
 
     options = {
-        "active": t("Active claims ({n})", n=counts.get("active", 0)),
-        "all":    t("All stages ({n})", n=counts.get("all", 0)),
-        **{k: f"{t(db.STAGES[k])} ({counts.get(k, 0)})" for k in db.STAGE_ORDER},
+        "active": t("toolbar.active", n=counts.get("active", 0)),
+        "all":    t("toolbar.all_stages", n=counts.get("all", 0)),
+        **{k: f"{t(STAGE_KEYS[k])} ({counts.get(k, 0)})" for k in db.STAGE_ORDER},
     }
 
     with ui.row().classes("w-full gap-2 items-center no-wrap"):
         search = ui.input(
-            placeholder=t("Search by title, provider, claimant or notes…"),
+            placeholder=t("toolbar.search_placeholder"),
             value=state["search"],
         ).classes("flex-1").props("clearable")
 
@@ -821,19 +829,18 @@ def main_page() -> None:
         with ui.row().classes("w-full items-end justify-between "
                               "border-b-2 border-gray-800 pb-3"):
             with ui.column().classes("gap-0"):
-                ui.label(t("Insurance Claim Tracker")) \
+                ui.label(t("app.title")) \
                     .classes("text-2xl font-medium")
-                ui.label(t("Medical bills · public health service · "
-                           "private insurance")) \
+                ui.label(t("app.subtitle")) \
                     .classes("text-xs text-gray-500")
             with ui.row().classes("gap-2 items-center"):
                 def do_backup() -> None:
                     target = db.backup_to(db.DATA_DIR / "backups")
-                    ui.notify(t("Backup written to {path}", path=str(target)),
+                    ui.notify(t("header.backup_notify", path=str(target)),
                               type="positive")
-                ui.button(t("Backup"), on_click=do_backup).props("outline")
-                ui.button(t("Settings"), on_click=lambda: ui.navigate.to("/settings")).props("outline")
-                ui.button(t("+ New claim"),
+                ui.button(t("header.backup"), on_click=do_backup).props("outline")
+                ui.button(t("header.settings"), on_click=lambda: ui.navigate.to("/settings")).props("outline")
+                ui.button(t("header.new_claim"),
                           on_click=lambda: claim_form_dialog(None)) \
                     .props("color=primary")
                 with ui.button_group().props("outline"):
@@ -870,20 +877,20 @@ def settings_page() -> None:
 
         with ui.row().classes("w-full items-center justify-between border-b-2 border-gray-800 pb-3"):
             with ui.row().classes("items-center gap-4"):
-                ui.label(t("Settings")).classes("text-2xl font-medium")
+                ui.label(t("header.settings")).classes("text-2xl font-medium")
                 with ui.button_group().props("outline"):
                     ui.button("DE", on_click=lambda: _set_lang("de")) \
                         .props(f"{'color=primary' if state['lang'] == 'de' else 'flat'} size=sm")
                     ui.button("EN", on_click=lambda: _set_lang("en")) \
                         .props(f"{'color=primary' if state['lang'] == 'en' else 'flat'} size=sm")
-            ui.button(t("← Back"), on_click=lambda: ui.navigate.to("/")).props("flat")
+            ui.button(t("settings.back"), on_click=lambda: ui.navigate.to("/")).props("flat")
 
         # ---- Claimants section -------------------------------------------
         with ui.card().classes("w-full"):
             with ui.row().classes("w-full items-center justify-between mb-2"):
-                ui.label(t("Claimants")).classes("text-lg font-semibold")
+                ui.label(t("settings.claimants_section")).classes("text-lg font-semibold")
                 ui.button(icon="add", on_click=lambda: _add_claimant_inline(claimants_col)) \
-                    .props("flat round dense").tooltip(t("Add claimant"))
+                    .props("flat round dense").tooltip(t("claimant.add"))
 
             claimants_col = ui.column().classes("w-full gap-1")
             _render_claimants(claimants_col)
@@ -891,27 +898,27 @@ def settings_page() -> None:
         # ---- Providers section -------------------------------------------
         with ui.card().classes("w-full"):
             with ui.row().classes("w-full items-center justify-between mb-2"):
-                ui.label(t("Providers")).classes("text-lg font-semibold")
+                ui.label(t("settings.providers_section")).classes("text-lg font-semibold")
                 ui.button(icon="add", on_click=lambda: _add_provider_inline(providers_col)) \
-                    .props("flat round dense").tooltip(t("Add provider"))
+                    .props("flat round dense").tooltip(t("provider.add"))
 
             providers_col = ui.column().classes("w-full gap-1")
             _render_providers(providers_col)
 
         # ---- Staleness thresholds section --------------------------------
         with ui.card().classes("w-full"):
-            ui.label(t("Staleness thresholds")).classes("text-lg font-semibold mb-2")
+            ui.label(t("settings.staleness_title")).classes("text-lg font-semibold mb-2")
             ui.label(
-                t("A claim is flagged as stale when it has been in a pending stage longer than these limits.")
+                t("settings.staleness_desc")
             ).classes("text-sm text-gray-500 mb-3")
 
             public_input = ui.number(
-                t("Public insurer pending (days)"),
+                t("settings.staleness_public"),
                 value=db.STALE_DAYS["public_pending"],
                 min=1, step=1, format="%.0f",
             ).classes("w-full")
             private_input = ui.number(
-                t("Private insurer pending (days)"),
+                t("settings.staleness_private"),
                 value=db.STALE_DAYS["private_pending"],
                 min=1, step=1, format="%.0f",
             ).classes("w-full")
@@ -923,13 +930,13 @@ def settings_page() -> None:
                     if pub < 1 or priv < 1:
                         raise ValueError
                 except (TypeError, ValueError):
-                    ui.notify(t("Please enter valid positive numbers"), type="warning")
+                    ui.notify(t("settings.staleness_invalid"), type="warning")
                     return
                 db.set_stale_days(pub, priv)
-                ui.notify(t("Staleness thresholds updated"), type="positive")
+                ui.notify(t("settings.staleness_updated"), type="positive")
 
             with ui.row().classes("w-full justify-end mt-2"):
-                ui.button(t("Save"), on_click=save_stale_days).props("color=primary")
+                ui.button(t("common.save"), on_click=save_stale_days).props("color=primary")
 
 
 def _render_claimants(container: ui.column) -> None:
@@ -937,7 +944,7 @@ def _render_claimants(container: ui.column) -> None:
     with container:
         claimants = db.list_claimants()
         if not claimants:
-            ui.label(t("No claimants yet.")).classes("text-sm text-gray-400")
+            ui.label(t("settings.no_claimants")).classes("text-sm text-gray-400")
             return
         for c in claimants:
             _claimant_row(container, c)
@@ -967,53 +974,53 @@ def _claimant_row(container: ui.column, c: dict) -> None:
 
 def _add_claimant_inline(container: ui.column) -> None:
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
-        ui.label(t("New claimant")).classes("text-lg font-medium")
-        name_input = ui.input(t("Full name")).classes("w-full")
-        color_input = ui.color_input(t("Badge color"), value="#6366f1", preview=True).classes("w-full")
+        ui.label(t("claimant.new")).classes("text-lg font-medium")
+        name_input = ui.input(t("claimant.full_name")).classes("w-full")
+        color_input = ui.color_input(t("claimant.badge_color"), value="#6366f1", preview=True).classes("w-full")
         color_input.picker.q_color.props('default-view="palette"')
 
         def save():
             name = (name_input.value or "").strip()
             if not name:
-                ui.notify(t("Please enter a name"), type="warning")
+                ui.notify(t("common.name_required"), type="warning")
                 return
             try:
                 db.add_claimant(name, color=color_input.value or "#6366f1")
             except Exception:
-                ui.notify(t("Claimant already exists"), type="warning")
+                ui.notify(t("claimant.already_exists"), type="warning")
                 return
             dialog.close()
             _render_claimants(container)
 
         with ui.row().classes("w-full justify-end gap-2"):
-            ui.button(t("Cancel"), on_click=dialog.close).props("flat")
-            ui.button(t("Add"), on_click=save).props("color=primary")
+            ui.button(t("common.cancel"), on_click=dialog.close).props("flat")
+            ui.button(t("common.add"), on_click=save).props("color=primary")
     dialog.open()
 
 
 def _edit_claimant_inline(container: ui.column, c: dict) -> None:
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
-        ui.label(t("Edit claimant")).classes("text-lg font-medium")
-        name_input = ui.input(t("Full name"), value=c["name"]).classes("w-full")
-        color_input = ui.color_input(t("Badge color"), value=c["color"] or "#6366f1", preview=True).classes("w-full")
+        ui.label(t("claimant.edit")).classes("text-lg font-medium")
+        name_input = ui.input(t("claimant.full_name"), value=c["name"]).classes("w-full")
+        color_input = ui.color_input(t("claimant.badge_color"), value=c["color"] or "#6366f1", preview=True).classes("w-full")
         color_input.picker.q_color.props('default-view="palette"')
 
         def save():
             name = (name_input.value or "").strip()
             if not name:
-                ui.notify(t("Please enter a name"), type="warning")
+                ui.notify(t("common.name_required"), type="warning")
                 return
             try:
                 db.update_claimant(c["id"], name, color_input.value or "#6366f1")
             except Exception:
-                ui.notify(t("Name already taken"), type="warning")
+                ui.notify(t("common.name_taken"), type="warning")
                 return
             dialog.close()
             _render_claimants(container)
 
         with ui.row().classes("w-full justify-end gap-2"):
-            ui.button(t("Cancel"), on_click=dialog.close).props("flat")
-            ui.button(t("Save"), on_click=save).props("color=primary")
+            ui.button(t("common.cancel"), on_click=dialog.close).props("flat")
+            ui.button(t("common.save"), on_click=save).props("color=primary")
     dialog.open()
 
 
@@ -1022,7 +1029,7 @@ def _render_providers(container: ui.column) -> None:
     with container:
         providers = db.list_providers()
         if not providers:
-            ui.label(t("No providers yet.")).classes("text-sm text-gray-400")
+            ui.label(t("settings.no_providers")).classes("text-sm text-gray-400")
             return
         for p in providers:
             _provider_row(container, p)
@@ -1047,49 +1054,49 @@ def _provider_row(container: ui.column, p: dict) -> None:
 
 def _add_provider_inline(container: ui.column) -> None:
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
-        ui.label(t("New provider")).classes("text-lg font-medium")
-        name_input = ui.input(t("Name")).classes("w-full")
+        ui.label(t("provider.new")).classes("text-lg font-medium")
+        name_input = ui.input(t("common.name")).classes("w-full")
 
         def save():
             name = (name_input.value or "").strip()
             if not name:
-                ui.notify(t("Please enter a name"), type="warning")
+                ui.notify(t("common.name_required"), type="warning")
                 return
             try:
                 db.add_provider(name)
             except Exception:
-                ui.notify(t("Provider already exists"), type="warning")
+                ui.notify(t("provider.already_exists"), type="warning")
                 return
             dialog.close()
             _render_providers(container)
 
         with ui.row().classes("w-full justify-end gap-2"):
-            ui.button(t("Cancel"), on_click=dialog.close).props("flat")
-            ui.button(t("Add"), on_click=save).props("color=primary")
+            ui.button(t("common.cancel"), on_click=dialog.close).props("flat")
+            ui.button(t("common.add"), on_click=save).props("color=primary")
     dialog.open()
 
 
 def _edit_provider_inline(container: ui.column, p: dict) -> None:
     with ui.dialog() as dialog, ui.card().classes("w-80 gap-2"):
-        ui.label(t("Edit provider")).classes("text-lg font-medium")
-        name_input = ui.input(t("Name"), value=p["name"]).classes("w-full")
+        ui.label(t("provider.edit")).classes("text-lg font-medium")
+        name_input = ui.input(t("common.name"), value=p["name"]).classes("w-full")
 
         def save():
             name = (name_input.value or "").strip()
             if not name:
-                ui.notify(t("Please enter a name"), type="warning")
+                ui.notify(t("common.name_required"), type="warning")
                 return
             try:
                 db.update_provider(p["id"], name)
             except Exception:
-                ui.notify(t("Name already taken"), type="warning")
+                ui.notify(t("common.name_taken"), type="warning")
                 return
             dialog.close()
             _render_providers(container)
 
         with ui.row().classes("w-full justify-end gap-2"):
-            ui.button(t("Cancel"), on_click=dialog.close).props("flat")
-            ui.button(t("Save"), on_click=save).props("color=primary")
+            ui.button(t("common.cancel"), on_click=dialog.close).props("flat")
+            ui.button(t("common.save"), on_click=save).props("color=primary")
     dialog.open()
 
 
@@ -1101,8 +1108,9 @@ def run() -> None:
     """Initialise the database and start the NiceGUI server."""
     import os
     db.init_db()
+    check_translations()
     ui.run(
-        title=t("Insurance Claim Tracker"),
+        title=t("app.title"),
         port=8080,
         reload=os.getenv("CLAIMS_DEV", "0") == "1",
         show=os.getenv("CLAIMS_DEV", "0") == "1",
