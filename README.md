@@ -7,21 +7,26 @@ cloud, no account.
 
 ## The workflow
 
-Each claim is a small state machine moving through four stages:
+Each claim moves through up to four stages. All valid transitions:
 
 ```
-Claim created ──┬──> Public claim pending ──> Private claim pending ──> Archived
-                └────────────────────────────^
+Claim created
+  ├──> Public claim pending
+  │      ├──> Private claim pending ──> Archived
+  │      └──> Archived (directly)
+  ├──> Private claim pending ──> Archived
+  └──> Archived (directly)
 ```
 
-1. **Claim created** — you scanned a medical bill after a doctor's visit.
-2. **Public claim pending** — *(optional)* submitted to the public health
-   service portal. This can take weeks.
-3. **Private claim pending** — submitted to private health insurance. If you
-   went through the public service first, you attach its confirmation document
-   at this transition; otherwise you jump here directly from step 1.
-4. **Archived** — the private insurer processed the claim; you attach its
-   confirmation and all documents are archived.
+- **Claim created** — a medical bill has been scanned after a doctor's visit.
+- **Public claim pending** — *(optional)* submitted to the public health
+  service portal. Can take several weeks. You can skip this stage and go
+  straight to private.
+- **Private claim pending** — submitted to private health insurance. If the
+  public claim was processed first, you attach its confirmation at this step.
+- **Archived** — the private insurer processed the claim and its confirmation
+  is attached. Also reachable directly from any earlier stage when no further
+  action is needed (e.g. a claim covered entirely by the public insurer).
 
 Only legal transitions are offered in the UI, and the data layer rejects
 illegal ones.
