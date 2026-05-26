@@ -138,7 +138,7 @@ _DE: dict[str, str] = {
     "Name already taken": "Name bereits vergeben",
     "Please enter a title": "Bitte Bezeichnung eingeben",
     "Please select a claimant": "Bitte Person auswählen",
-    "Claim created": "Antrag erstellt",
+    "Claim saved": "Antrag gespeichert",
     "Claim updated": "Antrag aktualisiert",
     "Backup written to {path}": "Sicherung gespeichert unter {path}",
 
@@ -187,4 +187,9 @@ def t(key: str, lang: str, **kwargs) -> str:
     no explicit entries and missing German entries degrade gracefully.
     """
     text = _DE.get(key, key) if lang == "de" else key
-    return text.format(**kwargs) if kwargs else text
+    if not kwargs:
+        return text
+    try:
+        return text.format(**kwargs)
+    except (KeyError, IndexError):
+        return text

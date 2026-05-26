@@ -340,7 +340,7 @@ def claim_form_dialog(existing: dict | None = None, dupe_mode: bool = False) -> 
             else:
                 new_id = db.create_claim(**fields)
                 state["open_id"] = new_id
-                ui.notify(t("Claim duplicated") if dupe_mode else t("Claim created"), type="positive")
+                ui.notify(t("Claim duplicated") if dupe_mode else t("Claim saved"), type="positive")
             dialog.close()
             refresh_page()
 
